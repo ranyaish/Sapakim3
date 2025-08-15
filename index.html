@@ -1,34 +1,180 @@
 <!DOCTYPE html>
-<html lang="he">
+<html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ניהול חשבוניות ספקים</title>
-<link rel="stylesheet" href="style.css" />
+<style>
+  body { font-family: system-ui, Arial, sans-serif; direction: rtl; margin: 24px; }
+  h1 { margin-top: 0; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input, button { font-size: 16px; padding: 8px 10px; }
+  button { cursor: pointer; }
+  #supplierList { list-style: none; padding: 0; margin: 12px 0; }
+  #supplierList li { padding: 8px 10px; border-bottom: 1px solid #ddd; display:flex; justify-content:space-between; align-items:center; }
+  #supplierList li span.name { cursor: pointer; }
+  #invoice-section { display:none; border-top:1px solid #eee; padding-top:12px; margin-top:12px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+  .muted { color:#6b7280; font-size:14px; }
+</style>
 </head>
 <body>
-<h1>ניהול חשבוניות ספקים</h1>
-<div id="app">
+  <h1>ניהול חשבוניות ספקים</h1>
+
   <section id="supplier-section">
-    <input type="text" id="supplierName" placeholder="שם ספק" />
-    <button id="addSupplierBtn">הוסף ספק</button>
+    <div class="row">
+      <input type="text" id="supplierName" placeholder="שם ספק" />
+      <button id="addSupplierBtn">הוסף ספק</button>
+    </div>
     <ul id="supplierList"></ul>
+    <div class="muted">טפח/י על שם ספק כדי לפתוח כרטסת.</div>
   </section>
-  <section id="invoice-section" style="display:none;">
+
+  <section id="invoice-section">
     <h2 id="selectedSupplier"></h2>
-    <input type="date" id="invoiceDate" />
-    <input type="number" id="invoiceAmount" placeholder="סכום" />
-    <input type="text" id="invoiceNote" placeholder="הערה" />
-    <button id="addInvoiceBtn">הוסף חשבונית</button>
+    <div class="row">
+      <input type="date" id="invoiceDate" />
+      <input type="number" id="invoiceAmount" placeholder="סכום" />
+      <input type="text" id="invoiceNote" placeholder="הערה (אופציונלי)" />
+      <button id="addInvoiceBtn">הוסף חשבונית</button>
+    </div>
     <table id="invoiceTable">
       <thead>
-        <tr><th>תאריך</th><th>סכום</th><th>הערה</th></tr>
+        <tr><th>תאריך</th><th>סכום</th><th>הערה</th><th>מחק</th></tr>
       </thead>
       <tbody></tbody>
     </table>
-    <div>סה״כ: <span id="totalAmount">0</span> ₪</div>
+    <div style="margin-top:8px">סה״כ: <strong><span id="totalAmount">0</span> ₪</strong></div>
+    <div class="muted">הנתונים נשמרים מקומית בטלפון (localStorage).</div>
   </section>
-</div>
-<script src="app.js"></script>
+
+<script>
+(function(){
+  // --- State ---
+  let suppliers = JSON.parse(localStorage.getItem('suppliers_v1') || '[]');
+  let selectedSupplierIndex = null;
+
+  // --- Elements ---
+  const supplierNameInput = document.getElementById('supplierName');
+  const addSupplierBtn = document.getElementById('addSupplierBtn');
+  const supplierList = document.getElementById('supplierList');
+  const invoiceSection = document.getElementById('invoice-section');
+  const selectedSupplierTitle = document.getElementById('selectedSupplier');
+  const invoiceDateInput = document.getElementById('invoiceDate');
+  const invoiceAmountInput = document.getElementById('invoiceAmount');
+  const invoiceNoteInput = document.getElementById('invoiceNote');
+  const addInvoiceBtn = document.getElementById('addInvoiceBtn');
+  const invoiceTableBody = document.querySelector('#invoiceTable tbody');
+  const totalAmountSpan = document.getElementById('totalAmount');
+
+  // --- Render suppliers ---
+  function renderSuppliers() {
+    supplierList.innerHTML = '';
+    if (suppliers.length === 0) {
+      const li = document.createElement('li');
+      li.textContent = 'אין ספקים עדיין — הוסף/י למעלה שם ולחץ/י "הוסף ספק".';
+      supplierList.appendChild(li);
+      return;
+    }
+    suppliers.forEach((s, i) => {
+      const li = document.createElement('li');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'name';
+      nameSpan.textContent = s.name;
+      nameSpan.onclick = () => selectSupplier(i);
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'מחק';
+      delBtn.onclick = () => deleteSupplier(i);
+      li.appendChild(nameSpan);
+      li.appendChild(delBtn);
+      supplierList.appendChild(li);
+    });
+  }
+
+  function deleteSupplier(index){
+    if (!confirm('למחוק את הספק "' + suppliers[index].name + '" וכל החשבוניות שלו?')) return;
+    suppliers.splice(index, 1);
+    selectedSupplierIndex = null;
+    save();
+    renderSuppliers();
+    invoiceSection.style.display = 'none';
+  }
+
+  // --- Select supplier ---
+  function selectSupplier(index) {
+    selectedSupplierIndex = index;
+    invoiceSection.style.display = 'block';
+    selectedSupplierTitle.textContent = suppliers[index].name;
+    renderInvoices();
+  }
+
+  // --- Render invoices ---
+  function renderInvoices() {
+    const supplier = suppliers[selectedSupplierIndex];
+    invoiceTableBody.innerHTML = '';
+    let total = 0;
+    supplier.invoices.forEach((inv, idx) => {
+      const tr = document.createElement('tr');
+      const tdDate = document.createElement('td');
+      tdDate.textContent = inv.date;
+
+      const tdAmount = document.createElement('td');
+      tdAmount.textContent = Number(inv.amount).toFixed(2);
+
+      const tdNote = document.createElement('td');
+      tdNote.textContent = inv.note || '';
+
+      const tdDel = document.createElement('td');
+      const del = document.createElement('button');
+      del.textContent = '✕';
+      del.onclick = () => { supplier.invoices.splice(idx,1); save(); renderInvoices(); };
+      tdDel.appendChild(del);
+
+      tr.appendChild(tdDate);
+      tr.appendChild(tdAmount);
+      tr.appendChild(tdNote);
+      tr.appendChild(tdDel);
+      invoiceTableBody.appendChild(tr);
+
+      total += parseFloat(inv.amount || 0);
+    });
+    totalAmountSpan.textContent = total.toFixed(2);
+  }
+
+  // --- Save ---
+  function save(){
+    localStorage.setItem('suppliers_v1', JSON.stringify(suppliers));
+  }
+
+  // --- Events ---
+  addSupplierBtn.addEventListener('click', () => {
+    const name = supplierNameInput.value.trim();
+    if (!name) { alert('נא להזין שם ספק'); return; }
+    if (suppliers.some(s => s.name === name)) { alert('ספק כבר קיים'); return; }
+    suppliers.push({ name, invoices: [] });
+    supplierNameInput.value = '';
+    save();
+    renderSuppliers();
+  });
+
+  addInvoiceBtn.addEventListener('click', () => {
+    if (selectedSupplierIndex === null) { alert('בחר/י ספק מהרשימה'); return; }
+    const date = invoiceDateInput.value;
+    const amount = parseFloat(invoiceAmountInput.value);
+    const note = invoiceNoteInput.value.trim();
+    if (!date || isNaN(amount)) { alert('נא להזין תאריך וסכום'); return; }
+    suppliers[selectedSupplierIndex].invoices.push({ date, amount, note });
+    invoiceDateInput.value = '';
+    invoiceAmountInput.value = '';
+    invoiceNoteInput.value = '';
+    save();
+    renderInvoices();
+  });
+
+  // First render
+  renderSuppliers();
+})();
+</script>
 </body>
 </html>
