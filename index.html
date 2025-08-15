@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ניהול חשבוניות ספקים — PROD v1.1 (Mobile Fix)</title>
+<title>ניהול חשבוניות ספקים — PROD v1.2</title>
 <style>
   :root{ --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; --accent:#111827; --radius:14px; }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
@@ -35,7 +35,7 @@
 <header>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <h1>ניהול חשבוניות ספקים</h1>
-    <span class="version">PROD v1.1</span>
+    <span class="version">PROD v1.2</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row" id="authBar">
@@ -141,7 +141,7 @@
   const fmtMoney = n => new Intl.NumberFormat("he-IL",{style:"currency",currency:"ILS"}).format(Number(n)||0);
   const monthKey = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
   const humanMonth = key => { const [y,m]=key.split("-").map(Number); return new Date(y,m-1,1).toLocaleString("he-IL",{month:"long",year:"numeric"}); };
-  const escapeHtml = s => String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const escapeHtml = s => String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;","">":"&gt;"}[c]));
 
   const SUPABASE_URL = "https://uzaqpwbejceyuhnmfdmq.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A";
@@ -283,7 +283,7 @@
       const li=document.createElement("li");
       li.innerHTML = `
         <div class="supplier-row ${activeSupplierId===s.id? "active": ""}">
-          <button class="supplier-select supplier-name" data-role="select" type="button" aria-label="בחר ספק">\${s.name}</button>
+          <button class="supplier-select supplier-name" data-role="select" type="button" aria-label="בחר ספק">${s.name}</button>
           <button class="btn small supplier-delete" data-role="delete" type="button">מחק</button>
         </div>`;
       attachSelectHandlers(li, s);
