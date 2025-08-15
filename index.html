@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ניהול חשבוניות ספקים — PROD v1.3 (no-templates)</title>
+<title>ניהול חשבוניות ספקים — PROD v1.4</title>
 <style>
   :root{ --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; --accent:#111827; --radius:14px; }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
@@ -33,7 +33,7 @@
 <header>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <h1>ניהול חשבוניות ספקים</h1>
-    <span class="version">PROD v1.3</span>
+    <span class="version">PROD v1.4</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row" id="authBar">
@@ -61,8 +61,10 @@
       <button id="tabLedger" class="tab active" type="button">כרטסת ספק</button>
       <button id="tabSummary" class="tab" type="button">סיכום חודשי (לספק)</button>
       <button id="tabAll" class="tab" type="button">סיכום חודשי (כל הספקים)</button>
+      <button id="tabMonthlyBySupplier" class="tab" type="button">סיכום חודשי לפי ספקים</button>
     </div>
 
+    <!-- Ledger -->
     <div id="ledgerView">
       <div id="emptyState" class="muted">בחר/י ספק משמאל כדי להתחיל</div>
       <div id="ledger" class="hidden">
@@ -90,6 +92,7 @@
       </div>
     </div>
 
+    <!-- Supplier Summary (single supplier) -->
     <div id="summaryView" class="hidden">
       <div id="summaryEmpty" class="muted">בחר/י ספק משמאל כדי לראות סיכום חודשי.</div>
       <div id="summaryBody" class="hidden">
@@ -112,6 +115,7 @@
       </div>
     </div>
 
+    <!-- All suppliers summary (all invoices combined) -->
     <div id="allView" class="hidden">
       <div class="row" style="justify-content:space-between">
         <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי — כל הספקים</h2>
@@ -130,6 +134,30 @@
         <table><thead><tr><th>חודש</th><th>סה״כ</th></tr></thead><tbody id="summaryTableBodyAll"></tbody></table>
       </div>
     </div>
+
+    <!-- NEW: Monthly by supplier (list) -->
+    <div id="monthlyBySupplierView" class="hidden">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי לפי ספקים</h2>
+        <div class="row">
+          <label>חודש:</label>
+          <select id="mbsMonth"></select>
+          <label>שנה:</label>
+          <select id="mbsYear"></select>
+          <button id="mbsRefresh" class="btn">רענן</button>
+        </div>
+      </div>
+      <div class="pill" style="margin-top:8px">סה״כ לחודש: <b id="mbsGrand">₪0.00</b></div>
+      <div style="margin-top:12px;overflow:auto;border:1px solid var(--border);border-radius:12px">
+        <table>
+          <thead><tr><th>ספק</th><th>סה״כ לחודש</th></tr></thead>
+          <tbody id="mbsTable"></tbody>
+          <tfoot><tr><td>סה״כ כל הספקים</td><td id="mbsGrandFoot">₪0.00</td></tr></tfoot>
+        </table>
+      </div>
+      <div id="mbsStatus" class="muted" style="margin-top:8px"></div>
+    </div>
+
   </section>
 </main>
 
@@ -139,7 +167,7 @@
   const fmtMoney = n => new Intl.NumberFormat("he-IL",{style:"currency",currency:"ILS"}).format(Number(n)||0);
   const monthKey = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
   const humanMonth = key => { const [y,m]=key.split("-").map(Number); return new Date(y,m-1,1).toLocaleString("he-IL",{month:"long",year:"numeric"}); };
-  const escapeHtml = s => String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const escapeHtml = s => String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;","">":"&gt;"}[c]));
 
   const SUPABASE_URL = "https://uzaqpwbejceyuhnmfdmq.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A";
@@ -210,20 +238,24 @@
   const emptyState=$("#emptyState"), ledger=$("#ledger"), ledgerTitle=$("#ledgerTitle");
   const grandTotalEl=$("#grandTotal"), invDate=$("#invDate"), invAmount=$("#invAmount"), invNotes=$("#invNotes");
   const invoiceTableBody=$("#invoiceTableBody");
-  const tabLedger=$("#tabLedger"), tabSummary=$("#tabSummary"), tabAll=$("#tabAll");
-  const ledgerView=$("#ledgerView"), summaryView=$("#summaryView"), allView=$("#allView");
+  const tabLedger=$("#tabLedger"), tabSummary=$("#tabSummary"), tabAll=$("#tabAll"), tabMonthlyBySupplier=$("#tabMonthlyBySupplier");
+  const ledgerView=$("#ledgerView"), summaryView=$("#summaryView"), allView=$("#allView"), monthlyBySupplierView=$("#monthlyBySupplierView");
   const summaryEmpty=$("#summaryEmpty"), summaryBody=$("#summaryBody"), summaryTitle=$("#summaryTitle"), rangeSelect=$("#rangeSelect"), summaryTableBody=$("#summaryTableBody"), barChart=$("#barChart");
   const rangeSelectAll=$("#rangeSelectAll"), summaryTableBodyAll=$("#summaryTableBodyAll"), barChartAll=$("#barChartAll");
 
+  // NEW: Monthly-by-supplier controls
+  const mbsMonth=$("#mbsMonth"), mbsYear=$("#mbsYear"), mbsRefresh=$("#mbsRefresh"), mbsTable=$("#mbsTable"), mbsGrand=$("#mbsGrand"), mbsGrandFoot=$("#mbsGrandFoot"), mbsStatus=$("#mbsStatus");
+
   function setActiveTab(activeBtn, showViews, hideViews){
-    [tabLedger, tabSummary, tabAll].forEach(b=>b.classList.remove("active"));
+    [tabLedger, tabSummary, tabAll, tabMonthlyBySupplier].forEach(b=>b.classList.remove("active"));
     activeBtn.classList.add("active");
     showViews.forEach(v=>v.classList.remove("hidden"));
     hideViews.forEach(v=>v.classList.add("hidden"));
   }
-  tabLedger.onclick=()=> setActiveTab(tabLedger, [ledgerView], [summaryView, allView]);
-  tabSummary.onclick=()=>{ setActiveTab(tabSummary, [summaryView], [ledgerView, allView]); renderSummary(); };
-  tabAll.onclick=()=>{ setActiveTab(tabAll, [allView], [ledgerView, summaryView]); renderAllSuppliersSummary(); };
+  tabLedger.onclick=()=> setActiveTab(tabLedger, [ledgerView], [summaryView, allView, monthlyBySupplierView]);
+  tabSummary.onclick=()=>{ setActiveTab(tabSummary, [summaryView], [ledgerView, allView, monthlyBySupplierView]); renderSummary(); };
+  tabAll.onclick=()=>{ setActiveTab(tabAll, [allView], [ledgerView, summaryView, monthlyBySupplierView]); renderAllSuppliersSummary(); };
+  tabMonthlyBySupplier.onclick=()=>{ setActiveTab(tabMonthlyBySupplier, [monthlyBySupplierView], [ledgerView, summaryView, allView]); initMbsIfNeeded(); renderMonthlyBySupplier(); };
 
   // ===== DB =====
   async function loadSuppliers(){
@@ -253,7 +285,7 @@
     if(error) authMsg.innerHTML='<span class="error">שגיאה במחיקת חשבונית: '+escapeHtml(error.message)+'</span>';
   }
 
-  // ===== Render (NO template literals) =====
+  // ===== Render suppliers list (no template literals) =====
   function renderSuppliers(){
     supplierList.innerHTML="";
     if(suppliers.length===0){
@@ -358,13 +390,44 @@
   }
 
   function renderSummaryTableAndChart(rows, tbody, canvas){
-    tbody.innerHTML="";
-    if(rows.length===0){
-      const tr=document.createElement("tr"); const td=document.createElement("td"); td.colSpan=2; td.className="muted"; td.style.textAlign="center"; td.style.padding="16px"; td.textContent="אין נתונים להצגה"; tr.appendChild(td); tbody.appendChild(tr);
-    } else {
-      rows.forEach(([k,sum])=>{ const tr=document.createElement("tr"); const td1=document.createElement("td"); td1.textContent=humanMonth(k); const td2=document.createElement("td"); td2.textContent=fmtMoney(sum); tr.appendChild(td1); tr.appendChild(td2); tbody.appendChild(tr); });
-    }
+    tbody.innerHTML=""; if(rows.length===0){ const tr=document.createElement("tr"); const td=document.createElement("td"); td.colSpan=2; td.className="muted"; td.style.textAlign="center"; td.style.padding="16px"; td.textContent="אין נתונים להצגה"; tr.appendChild(td); tbody.appendChild(tr); }
+    else { rows.forEach(([k,sum])=>{ const tr=document.createElement("tr"); const td1=document.createElement("td"); td1.textContent=humanMonth(k); const td2=document.createElement("td"); td2.textContent=fmtMoney(sum); tr.appendChild(td1); tr.appendChild(td2); tbody.appendChild(tr); }); }
     drawBarChart(rows, canvas);
+  }
+
+  // ===== NEW: Monthly by supplier (list) =====
+  function initMbsIfNeeded(){
+    if(mbsMonth.options.length>0) return;
+    const months = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+    months.forEach((m,i)=>{ const opt=document.createElement("option"); opt.value=String(i+1); opt.textContent=m; mbsMonth.appendChild(opt); });
+    const now=new Date(); const thisY=now.getFullYear();
+    for(let y=thisY-5;y<=thisY+1;y++){ const opt=document.createElement("option"); opt.value=String(y); opt.textContent=String(y); mbsYear.appendChild(opt); }
+    mbsMonth.value=String(new Date().getMonth()+1); mbsYear.value=String(thisY);
+    mbsRefresh.addEventListener("click", renderMonthlyBySupplier);
+    mbsMonth.addEventListener("change", renderMonthlyBySupplier);
+    mbsYear.addEventListener("change", renderMonthlyBySupplier);
+  }
+
+  function renderMonthlyBySupplier(){
+    // filter invoices by selected month
+    const y = Number(mbsYear.value), m = Number(mbsMonth.value);
+    const start = new Date(y, m-1, 1); const end = new Date(y, m, 1);
+    const filtered = invoices.filter(inv=>{ const d=new Date(inv.date); return d>=start && d<end; });
+    // aggregate per supplier
+    const totalsById = new Map();
+    for(const inv of filtered){
+      const key = inv.supplier_id; const amt = Number(inv.amount)||0;
+      totalsById.set(key, (totalsById.get(key)||0)+amt);
+    }
+    const rows = suppliers.map(s=>({ name: s.name, total: totalsById.get(s.id)||0 })).sort((a,b)=> b.total - a.total);
+
+    // render table
+    mbsTable.innerHTML=""; let grand=0;
+    rows.forEach(r=>{ grand+=r.total; const tr=document.createElement("tr"); const td1=document.createElement("td"); td1.textContent=r.name; const td2=document.createElement("td"); td2.textContent=fmtMoney(r.total); tr.appendChild(td1); tr.appendChild(td2); mbsTable.appendChild(tr); });
+    mbsGrand.textContent = fmtMoney(grand);
+    mbsGrandFoot.textContent = fmtMoney(grand);
+    const ym = new Date(y, m-1, 1).toLocaleString("he-IL",{month:"long",year:"numeric"});
+    mbsStatus.innerHTML = 'מוצג חודש: <b>'+ym+'</b>. ספקים: '+suppliers.length+' | חשבוניות בחודש: '+filtered.length;
   }
 
   // Events
@@ -382,6 +445,7 @@
     renderSuppliers(); renderLedger();
     if(!summaryView.classList.contains("hidden")) renderSummary();
     if(!allView.classList.contains("hidden")) renderAllSuppliersSummary();
+    if(!monthlyBySupplierView.classList.contains("hidden")) renderMonthlyBySupplier();
   }
 
   // Boot
