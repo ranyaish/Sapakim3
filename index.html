@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ניהול חשבוניות ספקים — Supabase v4.1 (מחובר)</title>
+  <title>ניהול חשבוניות ספקים — Supabase v4.1 (מתוקן)</title>
   <style>
     :root{ --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; --accent:#111827; --radius:14px; }
     *{box-sizing:border-box}
@@ -42,7 +42,7 @@
   <header>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <h1>ניהול חשבוניות ספקים</h1>
-      <span class="version">Supabase v4.1 — מחובר</span>
+      <span class="version">Supabase v4.1 — מתוקן</span>
       <span class="muted">URL: https://uzaqpwbejceyuhnmfdmq.supabase.co</span>
     </div>
     <div class="row" id="authBar">
@@ -149,8 +149,8 @@
     const SUPABASE_URL = "https://uzaqpwbejceyuhnmfdmq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A";
 
-    // ====== Supabase init ======
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {{ auth: {{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }} }});
+    // ====== Supabase init (תיקון סוגריים) ======
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
 
     // ====== Auth UI ======
     const emailEl = document.getElementById("email");
@@ -183,7 +183,7 @@
     }
 
     async function refreshSession(){
-      const {{ data: {{ session }} }} = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       currentUser = session?.user || null;
       setAuthUI(!!currentUser, currentUser?.email);
       if(currentUser){ await refreshAll(); }
@@ -191,7 +191,7 @@
 
     loginBtn.onclick = async () => {
       authMsg.textContent = "מתחבר...";
-      const {{ error }} = await supabase.auth.signInWithPassword({{ email: emailEl.value, password: passEl.value }});
+      const { error } = await supabase.auth.signInWithPassword({ email: emailEl.value, password: passEl.value });
       authMsg.textContent = error ? ("שגיאה: " + error.message) : "מחובר";
       await refreshSession();
     };
@@ -275,7 +275,7 @@
         li.innerHTML = `<span class="truncate">${s.name}</span><button class="btn small" data-del="${s.id}">מחק</button>`;
         li.onclick=async (e)=>{
           if(e.target && e.target.dataset && e.target.dataset.del){
-            if(!confirm(`למחוק את הספק "${s.name}" וכל החשבוניות שלו?`)) return;
+            if(!confirm(\`למחוק את הספק "\${s.name}" וכל החשבוניות שלו?\`)) return;
             await deleteSupplier(s.id); await refreshAll();
           } else { activeSupplierId=s.id; renderAllViews(); }
         };
@@ -434,6 +434,7 @@
       if(!allView.classList.contains("hidden")) renderAllSuppliersSummary();
     }
 
+    // Start
     refreshSession();
   </script>
 </body>
