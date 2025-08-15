@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ניהול חשבוניות ספקים — PROD v1.4</title>
+<title>ניהול חשבוניות ספקים — PROD v1.4-fix</title>
 <style>
   :root{ --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; --accent:#111827; --radius:14px; }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
@@ -33,7 +33,7 @@
 <header>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <h1>ניהול חשבוניות ספקים</h1>
-    <span class="version">PROD v1.4</span>
+    <span class="version">PROD v1.4-fix</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row" id="authBar">
@@ -64,7 +64,6 @@
       <button id="tabMonthlyBySupplier" class="tab" type="button">סיכום חודשי לפי ספקים</button>
     </div>
 
-    <!-- Ledger -->
     <div id="ledgerView">
       <div id="emptyState" class="muted">בחר/י ספק משמאל כדי להתחיל</div>
       <div id="ledger" class="hidden">
@@ -92,7 +91,6 @@
       </div>
     </div>
 
-    <!-- Supplier Summary (single supplier) -->
     <div id="summaryView" class="hidden">
       <div id="summaryEmpty" class="muted">בחר/י ספק משמאל כדי לראות סיכום חודשי.</div>
       <div id="summaryBody" class="hidden">
@@ -115,7 +113,6 @@
       </div>
     </div>
 
-    <!-- All suppliers summary (all invoices combined) -->
     <div id="allView" class="hidden">
       <div class="row" style="justify-content:space-between">
         <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי — כל הספקים</h2>
@@ -135,7 +132,6 @@
       </div>
     </div>
 
-    <!-- NEW: Monthly by supplier (list) -->
     <div id="monthlyBySupplierView" class="hidden">
       <div class="row" style="justify-content:space-between;align-items:center">
         <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי לפי ספקים</h2>
@@ -172,21 +168,28 @@
   const SUPABASE_URL = "https://uzaqpwbejceyuhnmfdmq.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A";
 
-  const authMsg = $("#authMsg");
-  const appEl = $("#app");
-  const emailEl = $("#email");
-  const passEl  = $("#password");
-  const loginBtn = $("#loginBtn");
-  const logoutBtn = $("#logoutBtn");
-  const whoami = $("#whoami");
+  const authMsg = document.getElementById("authMsg");
+  const appEl = document.getElementById("app");
+  const emailEl = document.getElementById("email");
+  const passEl  = document.getElementById("password");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const whoami = document.getElementById("whoami");
 
   let supabase = null, currentUser = null;
 
+  function wire(el, fn){
+    if(!el) return;
+    el.addEventListener("click", fn);
+    el.addEventListener("touchstart", e=>{ e.preventDefault(); fn(); });
+    el.addEventListener("pointerup", fn);
+  }
+
   async function createClientWithFallback(){
-    if (window.supabase && window.supabase.createClient) {
-      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
-    }
     try {
+      if (window.supabase && window.supabase.createClient) {
+        return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
+      }
       const mod = await import('https://esm.sh/@supabase/supabase-js@2');
       return mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
     } catch(e) {
@@ -199,19 +202,15 @@
     if(loggedIn){
       appEl.classList.remove("hidden");
       logoutBtn.classList.remove("hidden");
-      whoami.classList.remove("hidden");
-      whoami.textContent = email || "";
+      whoami.classList.remove("hidden"); whoami.textContent = email || "";
       emailEl.classList.add("hidden"); passEl.classList.add("hidden"); loginBtn.classList.add("hidden");
-      authMsg.textContent = "מחובר";
-      authMsg.className="ok";
+      authMsg.textContent = "מחובר"; authMsg.className="ok";
     } else {
       appEl.classList.add("hidden");
       logoutBtn.classList.add("hidden");
-      whoami.classList.add("hidden");
-      whoami.textContent="";
+      whoami.classList.add("hidden"); whoami.textContent="";
       emailEl.classList.remove("hidden"); passEl.classList.remove("hidden"); loginBtn.classList.remove("hidden");
-      authMsg.textContent = "";
-      authMsg.className="";
+      authMsg.textContent = ""; authMsg.className="";
     }
   }
 
@@ -222,29 +221,31 @@
     if(currentUser) await refreshAll();
   }
 
-  loginBtn.addEventListener('click', async ()=>{
+  async function onLogin(){
     authMsg.textContent = "מתחבר...";
-    const { error } = await supabase.auth.signInWithPassword({ email: (emailEl.value||'').trim(), password: passEl.value||'' });
+    const email=(emailEl.value||"").trim(); const password=passEl.value||"";
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if(error){ authMsg.innerHTML = '<span class="error">שגיאה: '+escapeHtml(error.message)+'</span>'; }
     else { authMsg.innerHTML = '<span class="ok">מחובר</span>'; }
     await refreshSession();
-  });
-  logoutBtn.addEventListener('click', async ()=>{ await supabase.auth.signOut(); currentUser=null; setAuthUI(false); });
+  }
+  async function onLogout(){
+    await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
+  }
 
   // ===== App state =====
   let suppliers=[], invoices=[], activeSupplierId=null;
 
-  const supplierName=$("#supplierName"), supplierList=$("#supplierList");
-  const emptyState=$("#emptyState"), ledger=$("#ledger"), ledgerTitle=$("#ledgerTitle");
-  const grandTotalEl=$("#grandTotal"), invDate=$("#invDate"), invAmount=$("#invAmount"), invNotes=$("#invNotes");
-  const invoiceTableBody=$("#invoiceTableBody");
-  const tabLedger=$("#tabLedger"), tabSummary=$("#tabSummary"), tabAll=$("#tabAll"), tabMonthlyBySupplier=$("#tabMonthlyBySupplier");
-  const ledgerView=$("#ledgerView"), summaryView=$("#summaryView"), allView=$("#allView"), monthlyBySupplierView=$("#monthlyBySupplierView");
-  const summaryEmpty=$("#summaryEmpty"), summaryBody=$("#summaryBody"), summaryTitle=$("#summaryTitle"), rangeSelect=$("#rangeSelect"), summaryTableBody=$("#summaryTableBody"), barChart=$("#barChart");
-  const rangeSelectAll=$("#rangeSelectAll"), summaryTableBodyAll=$("#summaryTableBodyAll"), barChartAll=$("#barChartAll");
+  const supplierName=document.getElementById("supplierName"), supplierList=document.getElementById("supplierList");
+  const emptyState=document.getElementById("emptyState"), ledger=document.getElementById("ledger"), ledgerTitle=document.getElementById("ledgerTitle");
+  const invDate=document.getElementById("invDate"), invAmount=document.getElementById("invAmount"), invNotes=document.getElementById("invNotes");
+  const invoiceTableBody=document.getElementById("invoiceTableBody");
+  const tabLedger=document.getElementById("tabLedger"), tabSummary=document.getElementById("tabSummary"), tabAll=document.getElementById("tabAll"), tabMonthlyBySupplier=document.getElementById("tabMonthlyBySupplier");
+  const ledgerView=document.getElementById("ledgerView"), summaryView=document.getElementById("summaryView"), allView=document.getElementById("allView"), monthlyBySupplierView=document.getElementById("monthlyBySupplierView");
+  const summaryEmpty=document.getElementById("summaryEmpty"), summaryBody=document.getElementById("summaryBody"), summaryTitle=document.getElementById("summaryTitle"), rangeSelect=document.getElementById("rangeSelect"), summaryTableBody=document.getElementById("summaryTableBody"), barChart=document.getElementById("barChart");
+  const rangeSelectAll=document.getElementById("rangeSelectAll"), summaryTableBodyAll=document.getElementById("summaryTableBodyAll"), barChartAll=document.getElementById("barChartAll");
 
-  // NEW: Monthly-by-supplier controls
-  const mbsMonth=$("#mbsMonth"), mbsYear=$("#mbsYear"), mbsRefresh=$("#mbsRefresh"), mbsTable=$("#mbsTable"), mbsGrand=$("#mbsGrand"), mbsGrandFoot=$("#mbsGrandFoot"), mbsStatus=$("#mbsStatus");
+  const mbsMonth=document.getElementById("mbsMonth"), mbsYear=document.getElementById("mbsYear"), mbsRefresh=document.getElementById("mbsRefresh"), mbsTable=document.getElementById("mbsTable"), mbsGrand=document.getElementById("mbsGrand"), mbsGrandFoot=document.getElementById("mbsGrandFoot"), mbsStatus=document.getElementById("mbsStatus");
 
   function setActiveTab(activeBtn, showViews, hideViews){
     [tabLedger, tabSummary, tabAll, tabMonthlyBySupplier].forEach(b=>b.classList.remove("active"));
@@ -252,10 +253,10 @@
     showViews.forEach(v=>v.classList.remove("hidden"));
     hideViews.forEach(v=>v.classList.add("hidden"));
   }
-  tabLedger.onclick=()=> setActiveTab(tabLedger, [ledgerView], [summaryView, allView, monthlyBySupplierView]);
-  tabSummary.onclick=()=>{ setActiveTab(tabSummary, [summaryView], [ledgerView, allView, monthlyBySupplierView]); renderSummary(); };
-  tabAll.onclick=()=>{ setActiveTab(tabAll, [allView], [ledgerView, summaryView, monthlyBySupplierView]); renderAllSuppliersSummary(); };
-  tabMonthlyBySupplier.onclick=()=>{ setActiveTab(tabMonthlyBySupplier, [monthlyBySupplierView], [ledgerView, summaryView, allView]); initMbsIfNeeded(); renderMonthlyBySupplier(); };
+  wire(tabLedger, ()=> setActiveTab(tabLedger, [ledgerView], [summaryView, allView, monthlyBySupplierView]));
+  wire(tabSummary, ()=>{ setActiveTab(tabSummary, [summaryView], [ledgerView, allView, monthlyBySupplierView]); renderSummary(); });
+  wire(tabAll, ()=>{ setActiveTab(tabAll, [allView], [ledgerView, summaryView, monthlyBySupplierView]); renderAllSuppliersSummary(); });
+  wire(tabMonthlyBySupplier, ()=>{ setActiveTab(tabMonthlyBySupplier, [monthlyBySupplierView], [ledgerView, summaryView, allView]); initMbsIfNeeded(); renderMonthlyBySupplier(); });
 
   // ===== DB =====
   async function loadSuppliers(){
@@ -285,7 +286,6 @@
     if(error) authMsg.innerHTML='<span class="error">שגיאה במחיקת חשבונית: '+escapeHtml(error.message)+'</span>';
   }
 
-  // ===== Render suppliers list (no template literals) =====
   function renderSuppliers(){
     supplierList.innerHTML="";
     if(suppliers.length===0){
@@ -298,10 +298,8 @@
       const nameBtn=document.createElement("button"); nameBtn.type="button"; nameBtn.className="supplier-name btn"; nameBtn.style.border="none"; nameBtn.style.background="transparent"; nameBtn.style.textAlign="right"; nameBtn.textContent=s.name;
       const delBtn=document.createElement("button"); delBtn.type="button"; delBtn.className="btn small"; delBtn.textContent="מחק";
 
-      nameBtn.addEventListener("click",()=>{ activeSupplierId=s.id; renderAllViews(); });
-      nameBtn.addEventListener("touchstart",(e)=>{ e.preventDefault(); activeSupplierId=s.id; renderAllViews(); });
-      delBtn.addEventListener("click", async (e)=>{ e.stopPropagation(); if(!confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')) return; await deleteSupplier(s.id); await refreshAll(); });
-      delBtn.addEventListener("touchstart", async (e)=>{ e.preventDefault(); e.stopPropagation(); if(!confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')) return; await deleteSupplier(s.id); await refreshAll(); });
+      wire(nameBtn, ()=>{ activeSupplierId=s.id; renderAllViews(); });
+      wire(delBtn, async ()=>{ if(!confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')) return; await deleteSupplier(s.id); await refreshAll(); });
 
       row.appendChild(nameBtn); row.appendChild(delBtn);
       li.appendChild(row); supplierList.appendChild(li);
@@ -312,7 +310,7 @@
     if(!activeSupplierId){ emptyState.classList.remove("hidden"); ledger.classList.add("hidden"); return; }
     emptyState.classList.add("hidden"); ledger.classList.remove("hidden");
     const s = suppliers.find(x=>x.id===activeSupplierId);
-    document.getElementById("ledgerTitle").textContent = "כרטסת: " + (s && s.name ? s.name : "");
+    ledgerTitle.textContent = "כרטסת: " + (s && s.name ? s.name : "");
     const inv = invoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
     const total = inv.reduce((sum,i)=> sum + (Number(i.amount)||0), 0);
     document.getElementById("grandTotal").textContent = fmtMoney(total);
@@ -328,8 +326,7 @@
         const td2=document.createElement("td"); td2.textContent = fmtMoney(i.amount);
         const td3=document.createElement("td"); td3.textContent = i.notes||"";
         const td4=document.createElement("td"); const del=document.createElement("button"); del.className="btn small"; del.textContent="מחק";
-        del.addEventListener("click", async (e)=>{ e.stopPropagation(); await deleteInvoice(i.id); await refreshAll(); });
-        del.addEventListener("touchstart", async (e)=>{ e.preventDefault(); e.stopPropagation(); await deleteInvoice(i.id); await refreshAll(); });
+        wire(del, async ()=>{ await deleteInvoice(i.id); await refreshAll(); });
         td4.appendChild(del);
         tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
         invoiceTableBody.appendChild(tr);
@@ -376,7 +373,7 @@
     if(!activeSupplierId){ summaryEmpty.classList.remove("hidden"); summaryBody.classList.add("hidden"); return; }
     summaryEmpty.classList.add("hidden"); summaryBody.classList.remove("hidden");
     const s = suppliers.find(x=>x.id===activeSupplierId);
-    document.getElementById("summaryTitle").textContent = "סיכום חודשי: " + (s && s.name ? s.name : "");
+    summaryTitle.textContent = "סיכום חודשי: " + (s && s.name ? s.name : "");
     const inv = invoices.filter(i=>i.supplier_id===activeSupplierId);
     const grouped = groupByMonth(inv); const n = parseInt(rangeSelect.value,10);
     const rows = getLastNMonthsData(grouped, n);
@@ -395,7 +392,6 @@
     drawBarChart(rows, canvas);
   }
 
-  // ===== NEW: Monthly by supplier (list) =====
   function initMbsIfNeeded(){
     if(mbsMonth.options.length>0) return;
     const months = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
@@ -403,25 +399,21 @@
     const now=new Date(); const thisY=now.getFullYear();
     for(let y=thisY-5;y<=thisY+1;y++){ const opt=document.createElement("option"); opt.value=String(y); opt.textContent=String(y); mbsYear.appendChild(opt); }
     mbsMonth.value=String(new Date().getMonth()+1); mbsYear.value=String(thisY);
-    mbsRefresh.addEventListener("click", renderMonthlyBySupplier);
+    wire(mbsRefresh, renderMonthlyBySupplier);
     mbsMonth.addEventListener("change", renderMonthlyBySupplier);
     mbsYear.addEventListener("change", renderMonthlyBySupplier);
   }
 
   function renderMonthlyBySupplier(){
-    // filter invoices by selected month
     const y = Number(mbsYear.value), m = Number(mbsMonth.value);
     const start = new Date(y, m-1, 1); const end = new Date(y, m, 1);
     const filtered = invoices.filter(inv=>{ const d=new Date(inv.date); return d>=start && d<end; });
-    // aggregate per supplier
     const totalsById = new Map();
     for(const inv of filtered){
       const key = inv.supplier_id; const amt = Number(inv.amount)||0;
       totalsById.set(key, (totalsById.get(key)||0)+amt);
     }
     const rows = suppliers.map(s=>({ name: s.name, total: totalsById.get(s.id)||0 })).sort((a,b)=> b.total - a.total);
-
-    // render table
     mbsTable.innerHTML=""; let grand=0;
     rows.forEach(r=>{ grand+=r.total; const tr=document.createElement("tr"); const td1=document.createElement("td"); td1.textContent=r.name; const td2=document.createElement("td"); td2.textContent=fmtMoney(r.total); tr.appendChild(td1); tr.appendChild(td2); mbsTable.appendChild(tr); });
     mbsGrand.textContent = fmtMoney(grand);
@@ -429,12 +421,6 @@
     const ym = new Date(y, m-1, 1).toLocaleString("he-IL",{month:"long",year:"numeric"});
     mbsStatus.innerHTML = 'מוצג חודש: <b>'+ym+'</b>. ספקים: '+suppliers.length+' | חשבוניות בחודש: '+filtered.length;
   }
-
-  // Events
-  document.getElementById("addSupplierBtn").addEventListener("click", async ()=>{ const name = supplierName.value.trim(); if(!name) return alert("נא להזין שם ספק"); if(suppliers.some(x=>x.name===name)) return alert("ספק כבר קיים"); await addSupplier(name); supplierName.value=""; await refreshAll(); });
-  document.getElementById("addInvoiceBtn").addEventListener("click", async ()=>{ if(!activeSupplierId) return alert("בחר/י ספק קודם"); const date = invDate.value; const amount = parseFloat(invAmount.value); const notes = invNotes.value || ""; if(!date || isNaN(amount)) return alert("נא להזין תאריך וסכום"); await addInvoice(activeSupplierId, date, amount, notes); invDate.value=""; invAmount.value=""; invNotes.value=""; await refreshAll(); });
-
-  function fmtDate(iso){ const d=new Date(iso); return isNaN(d.getTime()) ? iso : d.toLocaleDateString("he-IL"); }
 
   async function refreshAll(){
     suppliers = await loadSuppliers(); invoices  = await loadInvoices();
@@ -448,13 +434,18 @@
     if(!monthlyBySupplierView.classList.contains("hidden")) renderMonthlyBySupplier();
   }
 
-  // Boot
-  (async ()=>{
+  async function boot(){
     supabase = await createClientWithFallback(); if(!supabase) return;
+    wire(loginBtn, onLogin); wire(logoutBtn, onLogout);
     const { data: { session } } = await supabase.auth.getSession();
     currentUser = session?.user || null; setAuthUI(!!currentUser, currentUser?.email);
     if(currentUser) await refreshAll();
-  })();
+  }
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+
+  // Simple helpers
+  function fmtDate(iso){ const d=new Date(iso); return isNaN(d.getTime()) ? iso : d.toLocaleDateString("he-IL"); }
 })();
 </script>
 </html>
