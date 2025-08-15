@@ -492,7 +492,7 @@
      create trigger on_insert_invoices before insert on public.invoices
      for each row execute procedure public.set_user_id();
 
-  3) הפעל RLS (Row Level Security) לשתי הטבלאות:
+  3) הפעל (Row Level Security) לשתי הטבלאות:
      alter table public.suppliers enable row level security;
      alter table public.invoices enable row level security;
 
