@@ -1,0 +1,24 @@
+{
+  "name": "ניהול חשבוניות ספקים",
+  "short_name": "חשבוניות ספקים",
+  "description": "כרטסת לכל ספק + תאריך/סכום/הערות, סיכום חודשי, גרף, גיבוי/שחזור, עובד אופליין.",
+  "dir": "rtl",
+  "lang": "he",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
