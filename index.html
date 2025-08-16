@@ -1,44 +1,54 @@
 <!doctype html>
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ניהול חשבוניות ספקים — PROD v1.4-auto</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ניהול ספקים — v1.3.2-staging (טאב סיכום חודשי)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root{ --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; --accent:#111827; --radius:14px; }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-  header{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-  h1{margin:0;font-size:20px;font-weight:800} .muted{color:var(--muted)}
-  .btn{border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 14px;cursor:pointer;touch-action:manipulation}
-  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)} .btn.small{padding:8px 10px;font-size:14px}
-  input,select{width:100%;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff}
-  main{padding:16px;display:grid;grid-template-columns:1fr;gap:16px} @media(min-width:1000px){ main{grid-template-columns:300px 1fr} }
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
-  ul{list-style:none;margin:0;padding:0}
-  .supplier-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:right;padding:12px;border-radius:12px;border:1px solid var(--border);background:#fff}
-  .supplier-row.active{outline:2px solid #111827;outline-offset:2px;background:#eef2ff}
-  .supplier-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .supplier-list li+li{margin-top:8px}
-  table{width:100%;border-collapse:separate;border-spacing:0} th,td{text-align:right;padding:10px 12px;border-top:1px solid var(--border)}
-  thead th{background:#f3f4f6;border-top:none} .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-  .tab{border:1px solid var(--border);padding:10px 14px;border-radius:12px;background:#fff;cursor:pointer;touch-action:manipulation} .tab.active{background:#111827;color:#fff;border-color:#111827}
-  .pill{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:14px;display:inline-flex;gap:6px;align-items:center}
-  canvas{max-width:100%;height:auto;border:1px solid var(--border);border-radius:12px;background:#fff} .hidden{display:none}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap} .grow{flex:1} .badge{padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:#fff}
-  .version{padding:6px 10px;border-radius:999px;background:#111827;color:#fff;font-weight:700}
-  .error{color:#b91c1c} .ok{color:#047857}
+  :root { --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --ink:#0f172a; --muted:#64748b; --accent:#111827; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial }
+  header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--border);
+           padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap }
+  h1 { margin:0; font-size:20px; font-weight:800 }
+  .muted { color:var(--muted) }
+  .btn { border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 14px; cursor:pointer; touch-action:manipulation }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent) }
+  .btn.small { padding:6px 10px; font-size:14px }
+  input,select { width:100%; border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff }
+  main { padding:16px; display:grid; grid-template-columns:1fr; gap:16px }
+  @media(min-width:980px){ main { grid-template-columns:320px 1fr } }
+  .card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:14px }
+  ul { list-style:none; margin:0; padding:0 }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .grow { flex:1 }
+  .supplier-row { display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--border);
+                  border-radius:12px; padding:10px; background:#fff }
+  .supplier-row.active { outline:2px solid #111827; outline-offset:2px; background:#eef2ff }
+  .supplier-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; background:transparent; border:none }
+  table { width:100%; border-collapse:separate; border-spacing:0 }
+  th,td { text-align:right; padding:10px; border-top:1px solid var(--border) }
+  thead th { background:#f3f4f6; border-top:none }
+  .hidden { display:none }
+  .badge { padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#fff }
+  .ok { color:#047857 } .err { color:#b91c1c }
+
+  /* Tabs */
+  .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); padding:0 16px }
+  .tab-btn { border:none; background:transparent; padding:12px 10px; cursor:pointer; border-bottom:2px solid transparent; font-weight:600 }
+  .tab-btn.active { border-color:var(--accent); color:var(--accent) }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <header>
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <h1>ניהול חשבוניות ספקים</h1>
-    <span class="version">PROD v1.4-auto</span>
+  <div class="row">
+    <h1>ניהול ספקים</h1>
+    <span class="badge">v1.3.2-staging</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
-  <div class="row" id="authBar">
-    <input id="email" class="grow" type="email" placeholder="אימייל" autocomplete="username" />
-    <input id="password" class="grow" type="password" placeholder="סיסמה" autocomplete="current-password" />
+  <div class="row">
+    <input id="email" placeholder="אימייל" autocomplete="username">
+    <input id="password" placeholder="סיסמה" type="password" autocomplete="current-password">
     <button id="loginBtn" class="btn primary">כניסה</button>
     <button id="logoutBtn" class="btn hidden">יציאה</button>
     <span id="whoami" class="badge hidden"></span>
@@ -46,404 +56,318 @@
   </div>
 </header>
 
+<!-- NAV TABS -->
+<div class="tabs hidden" id="navTabs">
+  <button class="tab-btn active" id="tabSuppliers">ספקים</button>
+  <!-- START v1.3.2: Monthly Summary -->
+  <button class="tab-btn" id="tabMonthly">סיכום חודשי</button>
+  <!-- END v1.3.2 -->
+</div>
+
 <main id="app" class="hidden">
-  <aside class="card">
-    <h2 style="margin:0 0 10px;font-size:18px">ספקים</h2>
+  <!-- SUPPLIERS + LEDGER (כמו v1.3.1) -->
+  <aside class="card" id="suppliersPane">
+    <h3 style="margin:0 0 10px">ספקים</h3>
     <div class="row">
-      <input id="supplierName" class="grow" placeholder="שם ספק" />
-      <button id="addSupplierBtn" class="btn primary" type="button">הוסף</button>
+      <input id="supplierName" class="grow" placeholder="שם ספק">
+      <button id="addSupplierBtn" class="btn primary">הוסף</button>
     </div>
-    <ul id="supplierList" class="supplier-list" style="margin-top:10px;max-height:60vh;overflow:auto;padding-right:4px"></ul>
+    <ul id="supplierList" style="margin-top:10px;max-height:60vh;overflow:auto"></ul>
   </aside>
 
-  <section class="card">
-    <div class="tabs">
-      <button id="tabLedger" class="tab active" type="button">כרטסת ספק</button>
-      <button id="tabSummary" class="tab" type="button">סיכום חודשי (לספק)</button>
-      <button id="tabAll" class="tab" type="button">סיכום חודשי (כל הספקים)</button>
-      <button id="tabMonthlyBySupplier" class="tab" type="button">סיכום חודשי לפי ספקים</button>
-    </div>
-
-    <!-- Ledger -->
-    <div id="ledgerView">
-      <div id="emptyState" class="muted">בחר/י ספק משמאל כדי להתחיל</div>
-      <div id="ledger" class="hidden">
-        <div class="row" style="justify-content:space-between;align-items:flex-start">
-          <div>
-            <h2 id="ledgerTitle" style="margin:0 0 4px;font-size:18px;font-weight:700">כרטסת</h2>
-            <div class="muted">רשום/רשמי חשבונית: תאריך, סכום, והערות (לא חובה)</div>
-          </div>
-          <div class="pill"><span class="muted">סה״כ לספק:</span><strong id="grandTotal">₪0.00</strong></div>
-        </div>
-
-        <div class="row" style="margin-top:12px;border:1px solid var(--border);padding:10px;border-radius:12px;background:#f6f7fb;flex-wrap:wrap">
-          <input type="date" id="invDate">
-          <input type="number" step="any" id="invAmount" placeholder="0">
-          <input id="invNotes" class="grow" placeholder="הערות (אופציונלי)">
-          <button id="addInvoiceBtn" class="btn primary" type="button">הוסף חשבונית</button>
-        </div>
-
-        <div style="margin-top:12px;overflow:auto;border:1px solid var(--border);border-radius:12px">
-          <table>
-            <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
-            <tbody id="invoiceTableBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Supplier Summary (single supplier) -->
-    <div id="summaryView" class="hidden">
-      <div id="summaryEmpty" class="muted">בחר/י ספק משמאל כדי לראות סיכום חודשי.</div>
-      <div id="summaryBody" class="hidden">
-        <div class="row" style="justify-content:space-between">
-          <h2 id="summaryTitle" style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי</h2>
-          <div>
-            <label>טווח:</label>
-            <select id="rangeSelect">
-              <option value="12">12 חודשים אחרונים</option>
-              <option value="6">6 חודשים אחרונים</option>
-              <option value="3">3 חודשים אחרונים</option>
-              <option value="0">כל הזמנים</option>
-            </select>
-          </div>
-        </div>
-        <div style="margin-top:12px"><canvas id="barChart" width="900" height="280"></canvas></div>
-        <div style="margin-top:12px;overflow:auto;border:1px solid var(--border);border-radius:12px">
-          <table><thead><tr><th>חודש</th><th>סה״כ</th></tr></thead><tbody id="summaryTableBody"></tbody></table>
-        </div>
-      </div>
-    </div>
-
-    <!-- All suppliers summary -->
-    <div id="allView" class="hidden">
-      <div class="row" style="justify-content:space-between">
-        <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי — כל הספקים</h2>
+  <section class="card" id="ledgerPane">
+    <div id="emptyState" class="muted">בחר/י ספק משמאל כדי להתחיל</div>
+    <div id="ledger" class="hidden">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
         <div>
-          <label>טווח:</label>
-          <select id="rangeSelectAll">
-            <option value="12">12 חודשים אחרונים</option>
-            <option value="6">6 חודשים אחרונים</option>
-            <option value="3">3 חודשים אחרונים</option>
-            <option value="0">כל הזמנים</option>
-          </select>
+          <h3 id="ledgerTitle" style="margin:0 0 4px">כרטסת</h3>
+          <div class="muted">הוסף/י חשבונית: תאריך, סכום, הערות (לא חובה)</div>
         </div>
+        <div class="badge">סה״כ לספק: <b id="grandTotal">₪0.00</b></div>
       </div>
-      <div style="margin-top:12px"><canvas id="barChartAll" width="900" height="280"></canvas></div>
-      <div style="margin-top:12px;overflow:auto;border:1px solid var(--border);border-radius:12px">
-        <table><thead><tr><th>חודש</th><th>סה״כ</th></tr></thead><tbody id="summaryTableBodyAll"></tbody></table>
-      </div>
-    </div>
 
-    <!-- Monthly by supplier (list) -->
-    <div id="monthlyBySupplierView" class="hidden">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי לפי ספקים</h2>
-        <div class="row">
-          <label>חודש:</label>
-          <select id="mbsMonth"></select>
-          <label>שנה:</label>
-          <select id="mbsYear"></select>
-          <button id="mbsRefresh" class="btn">רענן</button>
-        </div>
+      <div class="row" style="margin-top:10px">
+        <input type="date" id="invDate">
+        <input type="number" step="any" id="invAmount" placeholder="0">
+        <input id="invNotes" class="grow" placeholder="הערות (אופציונלי)">
+        <button id="addInvoiceBtn" class="btn primary">הוסף חשבונית</button>
       </div>
-      <div class="pill" style="margin-top:8px">סה״כ לחודש: <b id="mbsGrand">₪0.00</b></div>
-      <div style="margin-top:12px;overflow:auto;border:1px solid var(--border);border-radius:12px">
+
+      <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
         <table>
-          <thead><tr><th>ספק</th><th>סה״כ לחודש</th></tr></thead>
-          <tbody id="mbsTable"></tbody>
-          <tfoot><tr><td>סה״כ כל הספקים</td><td id="mbsGrandFoot">₪0.00</td></tr></tfoot>
+          <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
+        <tbody id="invoiceTableBody"></tbody>
         </table>
       </div>
-      <div id="mbsStatus" class="muted" style="margin-top:8px"></div>
     </div>
-
   </section>
+
+  <!-- START v1.3.2: Monthly Summary -->
+  <section class="card hidden" id="monthlyPane" style="grid-column:1 / -1">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="margin:0">סיכום חודשי לכל הספקים</h3>
+      <div class="row">
+        <label class="muted" for="monthPicker">בחר חודש:</label>
+        <input type="month" id="monthPicker" style="width:auto">
+        <button id="refreshMonthlyBtn" class="btn">רענן</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
+      <table>
+        <thead><tr><th>ספק</th><th>סה״כ לחודש</th></tr></thead>
+        <tbody id="monthlyTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+  <!-- END v1.3.2 -->
 </main>
 
 <script>
 (function(){
-  const $ = s => document.querySelector(s);
-  const fmtMoney = n => new Intl.NumberFormat("he-IL",{style:"currency",currency:"ILS"}).format(Number(n)||0);
-  const monthKey = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
-  const humanMonth = key => { const [y,m]=key.split("-").map(Number); return new Date(y,m-1,1).toLocaleString("he-IL",{month:"long",year:"numeric"}); };
-  const escapeHtml = s => String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;","">":"&gt;"}[c]));
+  const $=s=>document.querySelector(s);
+  const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
+  const wire=(el,fn)=>{ on(el,'click',fn); on(el,'touchstart',e=>{e.preventDefault();fn();},{passive:false}); on(el,'pointerup',fn); };
+  const fmt=n=> new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
 
-  const SUPABASE_URL = "https://uzaqpwbejceyuhnmfdmq.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A";
+  // === CONFIG (מולא עבורך) ===
+  const SUPABASE_URL = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A';
 
-  const authMsg = document.getElementById("authMsg");
-  const appEl = document.getElementById("app");
-  const emailEl = document.getElementById("email");
-  const passEl  = document.getElementById("password");
-  const loginBtn = document.getElementById("loginBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const whoami = document.getElementById("whoami");
-
-  let supabase = null, currentUser = null;
-
-  function wire(el, fn){
-    if(!el) return;
-    el.addEventListener("click", fn, {passive:true});
-    el.addEventListener("touchstart", (e)=>{ e.preventDefault(); fn(); }, {passive:false});
-    el.addEventListener("pointerup", fn, {passive:true});
-  }
-
-  async function createClientWithFallback(){
-    try {
-      if (window.supabase && window.supabase.createClient) {
-        return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
-      }
-      const mod = await import('https://esm.sh/@supabase/supabase-js@2');
-      return mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
-    } catch(e) {
-      authMsg.innerHTML = '<span class="error">שגיאה: ספריית Supabase לא נטענה</span>';
-      console.error(e); return null;
-    }
-  }
-
-  function setAuthUI(loggedIn, email){
-    if(loggedIn){
-      appEl.classList.remove("hidden");
-      logoutBtn.classList.remove("hidden");
-      whoami.classList.remove("hidden"); whoami.textContent = email || "";
-      emailEl.classList.add("hidden"); passEl.classList.add("hidden"); loginBtn.classList.add("hidden");
-      authMsg.textContent = "מחובר"; authMsg.className="ok";
-    } else {
-      appEl.classList.add("hidden");
-      logoutBtn.classList.add("hidden");
-      whoami.classList.add("hidden"); whoami.textContent="";
-      emailEl.classList.remove("hidden"); passEl.classList.remove("hidden"); loginBtn.classList.remove("hidden");
-      authMsg.textContent = ""; authMsg.className="";
-    }
-  }
-
-  async function onLogin(){
-    authMsg.textContent = "מתחבר...";
-    const email=(emailEl.value||"").trim(); const password=passEl.value||"";
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if(error){ authMsg.innerHTML = '<span class="error">שגיאה: '+escapeHtml(error.message)+'</span>'; return; }
-    authMsg.innerHTML = '<span class="ok">מחובר</span>';
-    const { data: { session } } = await supabase.auth.getSession();
-    if(session?.user){ currentUser=session.user; setAuthUI(true, currentUser.email); await refreshAll(); }
-  }
-  async function onLogout(){
-    await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
-  }
-
-  // ===== App state =====
+  let supabase=null, currentUser=null;
   let suppliers=[], invoices=[], activeSupplierId=null;
 
-  const supplierName=document.getElementById("supplierName"), supplierList=document.getElementById("supplierList");
-  const emptyState=document.getElementById("emptyState"), ledger=document.getElementById("ledger"), ledgerTitle=document.getElementById("ledgerTitle");
-  const invDate=document.getElementById("invDate"), invAmount=document.getElementById("invAmount"), invNotes=document.getElementById("invNotes");
-  const invoiceTableBody=document.getElementById("invoiceTableBody");
-  const tabLedger=document.getElementById("tabLedger"), tabSummary=document.getElementById("tabSummary"), tabAll=document.getElementById("tabAll"), tabMonthlyBySupplier=document.getElementById("tabMonthlyBySupplier");
-  const ledgerView=document.getElementById("ledgerView"), summaryView=document.getElementById("summaryView"), allView=document.getElementById("allView"), monthlyBySupplierView=document.getElementById("monthlyBySupplierView");
-  const summaryEmpty=document.getElementById("summaryEmpty"), summaryBody=document.getElementById("summaryBody"), summaryTitle=document.getElementById("summaryTitle"), rangeSelect=document.getElementById("rangeSelect"), summaryTableBody=document.getElementById("summaryTableBody"), barChart=document.getElementById("barChart");
-  const rangeSelectAll=document.getElementById("rangeSelectAll"), summaryTableBodyAll=document.getElementById("summaryTableBodyAll"), barChartAll=document.getElementById("barChartAll");
-  const mbsMonth=document.getElementById("mbsMonth"), mbsYear=document.getElementById("mbsYear"), mbsRefresh=document.getElementById("mbsRefresh"), mbsTable=document.getElementById("mbsTable"), mbsGrand=document.getElementById("mbsGrand"), mbsGrandFoot=document.getElementById("mbsGrandFoot"), mbsStatus=document.getElementById("mbsStatus");
+  const authMsg=$('#authMsg'), appEl=$('#app'), emailEl=$('#email'), passEl=$('#password'),
+        loginBtn=$('#loginBtn'), logoutBtn=$('#logoutBtn'), whoami=$('#whoami');
 
-  function setActiveTab(activeBtn, showViews, hideViews){
-    [tabLedger, tabSummary, tabAll, tabMonthlyBySupplier].forEach(b=>b.classList.remove("active"));
-    activeBtn.classList.add("active");
-    showViews.forEach(v=>v.classList.remove("hidden"));
-    hideViews.forEach(v=>v.classList.add("hidden"));
+  // panes
+  const navTabs=$('#navTabs'), tabSuppliers=$('#tabSuppliers'), tabMonthly=$('#tabMonthly');
+  const suppliersPane=$('#suppliersPane'), ledgerPane=$('#ledgerPane');
+  const monthlyPane=$('#monthlyPane');
+
+  // suppliers / ledger
+  const supplierName=$('#supplierName'), supplierList=$('#supplierList');
+  const emptyState=$('#emptyState'), ledger=$('#ledger'), ledgerTitle=$('#ledgerTitle'),
+        invDate=$('#invDate'), invAmount=$('#invAmount'), invNotes=$('#invNotes'),
+        invoiceTableBody=$('#invoiceTableBody'), grandTotalEl=$('#grandTotal');
+
+  // monthly
+  const monthPicker=$('#monthPicker'), monthlyTableBody=$('#monthlyTableBody'), refreshMonthlyBtn=$('#refreshMonthlyBtn');
+
+  function setAuthUI(on, email){
+    if(on){
+      appEl.classList.remove('hidden');
+      navTabs.classList.remove('hidden');
+      logoutBtn.classList.remove('hidden');
+      whoami.classList.remove('hidden');
+      whoami.textContent=email||'';
+      emailEl.classList.add('hidden'); passEl.classList.add('hidden'); loginBtn.classList.add('hidden');
+      authMsg.textContent='מחובר'; authMsg.className='ok';
+    } else {
+      appEl.classList.add('hidden');
+      navTabs.classList.add('hidden');
+      logoutBtn.classList.add('hidden');
+      whoami.classList.add('hidden');
+      whoami.textContent='';
+      emailEl.classList.remove('hidden'); passEl.classList.remove('hidden'); loginBtn.classList.remove('hidden');
+      authMsg.textContent=''; authMsg.className='';
+    }
   }
-  wire(tabLedger, ()=> setActiveTab(tabLedger, [ledgerView], [summaryView, allView, monthlyBySupplierView]));
-  wire(tabSummary, ()=>{ setActiveTab(tabSummary, [summaryView], [ledgerView, allView, monthlyBySupplierView]); renderSummary(); });
-  wire(tabAll, ()=>{ setActiveTab(tabAll, [allView], [ledgerView, summaryView, monthlyBySupplierView]); renderAllSuppliersSummary(); });
-  wire(tabMonthlyBySupplier, ()=>{ setActiveTab(tabMonthlyBySupplier, [monthlyBySupplierView], [ledgerView, summaryView, allView]); initMbsIfNeeded(); renderMonthlyBySupplier(); });
 
   // ===== DB =====
-  async function loadSuppliers(){
-    const { data, error } = await supabase.from("suppliers").select("*").order("created_at", { ascending: false });
-    if(error){ authMsg.innerHTML='<span class="error">'+escapeHtml(error.message)+'</span>'; return []; }
-    return data;
+  async function loadSuppliers(){ const { data, error } = await supabase.from('suppliers').select('*').order('created_at',{ascending:false}); if(error) console.error(error); return data||[]; }
+  async function loadInvoicesForMonth(isoStart, isoEnd){
+    // שליפת חשבוניות לחודש נבחר
+    const { data, error } = await supabase.from('invoices').select('*').gte('date', isoStart).lt('date', isoEnd);
+    if(error) console.error(error);
+    return data||[];
   }
-  async function loadInvoices(){
-    const { data, error } = await supabase.from("invoices").select("*").order("date", { ascending: false });
-    if(error){ authMsg.innerHTML='<span class="error">'+escapeHtml(error.message)+'</span>'; return []; }
-    return data;
-  }
-  async function addSupplier(name){
-    const { error } = await supabase.from("suppliers").insert({ name });
-    if(error) authMsg.innerHTML='<span class="error">שגיאה בהוספת ספק: '+escapeHtml(error.message)+'</span>';
-  }
-  async function deleteSupplier(id){
-    const { error } = await supabase.from("suppliers").delete().eq("id", id);
-    if(error) authMsg.innerHTML='<span class="error">שגיאה במחיקת ספק: '+escapeHtml(error.message)+'</span>';
-  }
-  async function addInvoice(supplier_id, date, amount, notes){
-    const { error } = await supabase.from("invoices").insert({ supplier_id, date, amount, notes });
-    if(error) authMsg.innerHTML='<span class="error">שגיאה בהוספת חשבונית: '+escapeHtml(error.message)+'</span>';
-  }
-  async function deleteInvoice(id){
-    const { error } = await supabase.from("invoices").delete().eq("id", id);
-    if(error) authMsg.innerHTML='<span class="error">שגיאה במחיקת חשבונית: '+escapeHtml(error.message)+'</span>';
-  }
+  async function loadInvoicesAll(){ const { data, error } = await supabase.from('invoices').select('*').order('date',{ascending:false}); if(error) console.error(error); return data||[]; }
+  async function addSupplier(name){ const { error } = await supabase.from('suppliers').insert({name}); if(error) console.error(error); }
+  async function deleteSupplier(id){ const { error } = await supabase.from('suppliers').delete().eq('id',id); if(error) console.error(error); }
+  async function addInvoice(supplier_id,date,amount,notes){ const { error } = await supabase.from('invoices').insert({supplier_id,date,amount,notes}); if(error) console.error(error); }
+  async function deleteInvoice(id){ const { error } = await supabase.from('invoices').delete().eq('id',id); if(error) console.error(error); }
 
-  // ===== Renders =====
+  // ===== Suppliers & Ledger (ללא שינויי התנהגות) =====
   function renderSuppliers(){
-    supplierList.innerHTML="";
+    supplierList.innerHTML='';
     if(suppliers.length===0){
-      const li=document.createElement("li"); li.className="muted"; li.textContent="עדיין אין ספקים. הוסף/י אחד למעלה."; supplierList.appendChild(li);
-      activeSupplierId=null; renderLedger(); return;
+      const li=document.createElement('li'); li.className='muted'; li.textContent='אין ספקים. הוסף/י אחד למעלה.';
+      supplierList.appendChild(li); activeSupplierId=null; renderLedger(); return;
     }
-    suppliers.forEach((s)=>{
-      const li=document.createElement("li");
-      const row=document.createElement("div"); row.className="supplier-row"+(activeSupplierId===s.id?" active":"");
-      const nameBtn=document.createElement("button"); nameBtn.type="button"; nameBtn.className="supplier-name btn"; nameBtn.style.border="none"; nameBtn.style.background="transparent"; nameBtn.style.textAlign="right"; nameBtn.textContent=s.name;
-      const delBtn=document.createElement("button"); delBtn.type="button"; delBtn.className="btn small"; delBtn.textContent="מחק";
-      wire(nameBtn, ()=>{ activeSupplierId=s.id; renderAllViews(); });
-      wire(delBtn, async ()=>{ if(!confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')) return; await deleteSupplier(s.id); await refreshAll(); });
-      row.appendChild(nameBtn); row.appendChild(delBtn);
-      li.appendChild(row); supplierList.appendChild(li);
+    suppliers.forEach(s=>{
+      const li=document.createElement('li');
+      const row=document.createElement('div'); row.className='supplier-row'+(activeSupplierId===s.id?' active':'');
+      const btn=document.createElement('button'); btn.className='supplier-name'; btn.textContent=s.name;
+      const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+      btn.onclick=()=>{activeSupplierId=s.id; renderAllViews();};
+      del.onclick=async()=>{ if(confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')){ await deleteSupplier(s.id); await refreshAll(); } };
+      row.appendChild(btn); row.appendChild(del); li.appendChild(row); supplierList.appendChild(li);
     });
   }
 
   function renderLedger(){
-    if(!activeSupplierId){ emptyState.classList.remove("hidden"); ledger.classList.add("hidden"); return; }
-    emptyState.classList.add("hidden"); ledger.classList.remove("hidden");
+    const invoiceTableBody = $('#invoiceTableBody');
+    if(!activeSupplierId){ emptyState.classList.remove('hidden'); ledger.classList.add('hidden'); return; }
+    emptyState.classList.add('hidden'); ledger.classList.remove('hidden');
     const s = suppliers.find(x=>x.id===activeSupplierId);
-    ledgerTitle.textContent = "כרטסת: " + (s && s.name ? s.name : "");
-    const inv = invoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
-    const total = inv.reduce((sum,i)=> sum + (Number(i.amount)||0), 0);
-    document.getElementById("grandTotal").textContent = fmtMoney(total);
-    invoiceTableBody.innerHTML="";
-    if(inv.length===0){
-      const tr=document.createElement("tr"); const td=document.createElement("td"); td.colSpan=4; td.className="muted"; td.style.textAlign="center"; td.style.padding="16px"; td.textContent="אין רשומות לתצוגה"; tr.appendChild(td); invoiceTableBody.appendChild(tr);
+    ledgerTitle.textContent='כרטסת: '+(s?.name||'');
+
+    // כאן נשתמש בכל החשבוניות (לא לחודש) – כמו קודם
+    const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
+    const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
+    grandTotalEl.textContent = fmt(total);
+
+    invoiceTableBody.innerHTML='';
+    if(arr.length===0){
+      const tr=document.createElement('tr'); const td=document.createElement('td');
+      td.colSpan=4; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
+      tr.appendChild(td); invoiceTableBody.appendChild(tr);
     } else {
-      inv.forEach((i)=>{
-        const tr=document.createElement("tr");
-        const td1=document.createElement("td"); td1.textContent = new Date(i.date).toLocaleDateString("he-IL");
-        const td2=document.createElement("td"); td2.textContent = fmtMoney(i.amount);
-        const td3=document.createElement("td"); td3.textContent = i.notes||"";
-        const td4=document.createElement("td"); const del=document.createElement("button"); del.className="btn small"; del.textContent="מחק"; wire(del, async ()=>{ await deleteInvoice(i.id); await refreshAll(); }); td4.appendChild(del);
-        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
-        invoiceTableBody.appendChild(tr);
+      arr.forEach(i=>{
+        const tr=document.createElement('tr');
+        const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
+        const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
+        const td3=document.createElement('td'); td3.textContent=i.notes||'';
+        const td4=document.createElement('td'); const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+        del.onclick=async()=>{ await deleteInvoice(i.id); await refreshAll(); };
+        td4.appendChild(del);
+        [td1,td2,td3,td4].forEach(x=>tr.appendChild(x)); invoiceTableBody.appendChild(tr);
       });
     }
   }
 
-  function groupByMonth(relevantInvoices){
-    const map=new Map();
-    for(const i of relevantInvoices){
-      const k = monthKey(new Date(i.date)); const v = Number(i.amount)||0;
-      if(!k || !isFinite(v)) continue; map.set(k, (map.get(k)||0) + v);
-    }
-    return Array.from(map.entries()).sort();
-  }
-  function getLastNMonthsData(grouped, n){
-    if(!n || n<=0) return grouped;
-    const today=new Date(); const seq=[];
-    for(let i=n-1;i>=0;i--){
-      const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
-      const k = monthKey(d); const found = grouped.find(([mk])=> mk===k);
-      seq.push([k, found? found[1]: 0]);
-    }
-    return seq;
-  }
-  function drawBarChart(rows, canvas){
-    const ctx=canvas.getContext("2d"); const W=canvas.width, H=canvas.height;
-    ctx.clearRect(0,0,W,H);
-    const padL=60, padR=20, padT=20, padB=40; const chartW=W-padL-padR, chartH=H-padT-padB;
-    const values=rows.map(r=>r[1]); const maxVal=Math.max(10, ...values, 1); const y0=padT+chartH;
-    ctx.strokeStyle="#e5e7eb"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,y0); ctx.lineTo(padL+chartW,y0); ctx.stroke();
-    ctx.fillStyle="#64748b"; ctx.font="12px system-ui";
-    [0,0.5,1].forEach(fr=>{ const val=Math.round(maxVal*fr), y=y0-chartH*fr; ctx.fillText(fmtMoney(val).replace("\u00A0"," "), 6, y+4); ctx.strokeStyle="#f1f5f9"; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+chartW,y); ctx.stroke(); });
-    const gap=10; const count=rows.length||1; const barW=Math.max(6, Math.floor((chartW-gap*(count-1))/count));
-    let x=padL; rows.forEach(([k,sum])=>{ const h=Math.round((sum/maxVal)*chartH); const y=y0-h; ctx.fillStyle="#111827"; ctx.fillRect(x,y,barW,h); ctx.fillStyle="#64748b"; const label=humanMonth(k); ctx.save(); ctx.translate(x+barW/2, y0+14); ctx.rotate(-Math.PI/8); const tw=ctx.measureText(label).width; ctx.fillText(label, -Math.min(100,tw)/2, 0); ctx.restore(); x+=barW+gap; });
-  }
-
-  function renderSummary(){
-    if(!activeSupplierId){ summaryEmpty.classList.remove("hidden"); summaryBody.classList.add("hidden"); return; }
-    summaryEmpty.classList.add("hidden"); summaryBody.classList.remove("hidden");
-    const s = suppliers.find(x=>x.id===activeSupplierId);
-    summaryTitle.textContent = "סיכום חודשי: " + (s && s.name ? s.name : "");
-    const inv = invoices.filter(i=>i.supplier_id===activeSupplierId);
-    const grouped = groupByMonth(inv); const n = parseInt(rangeSelect.value,10);
-    const rows = getLastNMonthsData(grouped, n);
-    renderSummaryTableAndChart(rows, summaryTableBody, barChart);
-  }
-
-  function renderAllSuppliersSummary(){
-    const grouped = groupByMonth(invoices); const n = parseInt(rangeSelectAll.value,10);
-    const rows = getLastNMonthsData(grouped, n);
-    renderSummaryTableAndChart(rows, summaryTableBodyAll, barChartAll);
-  }
-
-  function renderSummaryTableAndChart(rows, tbody, canvas){
-    tbody.innerHTML=""; if(rows.length===0){ const tr=document.createElement("tr"); const td=document.createElement("td"); td.colSpan=2; td.className="muted"; td.style.textAlign="center"; td.style.padding="16px"; td.textContent="אין נתונים להצגה"; tr.appendChild(td); tbody.appendChild(tr); }
-    else { rows.forEach(([k,sum])=>{ const tr=document.createElement("tr"); const td1=document.createElement("td"); td1.textContent=humanMonth(k); const td2=document.createElement("td"); td2.textContent=fmtMoney(sum); tr.appendChild(td1); tr.appendChild(td2); tbody.appendChild(tr); }); }
-    drawBarChart(rows, canvas);
-  }
-
-  function initMbsIfNeeded(){
-    if(mbsMonth.options.length>0) return;
-    const months = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-    months.forEach((m,i)=>{ const opt=document.createElement("option"); opt.value=String(i+1); opt.textContent=m; mbsMonth.appendChild(opt); });
-    const now=new Date(); const thisY=now.getFullYear();
-    for(let y=thisY-5;y<=thisY+1;y++){ const opt=document.createElement("option"); opt.value=String(y); opt.textContent=String(y); mbsYear.appendChild(opt); }
-    mbsMonth.value=String(new Date().getMonth()+1); mbsYear.value=String(thisY);
-    wire(mbsRefresh, renderMonthlyBySupplier);
-    mbsMonth.addEventListener("change", renderMonthlyBySupplier);
-    mbsYear.addEventListener("change", renderMonthlyBySupplier);
-  }
-
-  function renderMonthlyBySupplier(){
-    const y = Number(mbsYear.value), m = Number(mbsMonth.value);
-    const start = new Date(y, m-1, 1); const end = new Date(y, m, 1);
-    const filtered = invoices.filter(inv=>{ const d=new Date(inv.date); return d>=start && d<end; });
-    const totalsById = new Map();
-    for(const inv of filtered){
-      const key = inv.supplier_id; const amt = Number(inv.amount)||0;
-      totalsById.set(key, (totalsById.get(key)||0)+amt);
-    }
-    const rows = suppliers.map(s=>({ name: s.name, total: totalsById.get(s.id)||0 })).sort((a,b)=> b.total - a.total);
-    mbsTable.innerHTML=""; let grand=0;
-    rows.forEach(r=>{ grand+=r.total; const tr=document.createElement("tr"); const td1=document.createElement("td"); td1.textContent=r.name; const td2=document.createElement("td"); td2.textContent=fmtMoney(r.total); tr.appendChild(td1); tr.appendChild(td2); mbsTable.appendChild(tr); });
-    mbsGrand.textContent = fmtMoney(grand);
-    mbsGrandFoot.textContent = fmtMoney(grand);
-    const ym = new Date(y, m-1, 1).toLocaleString("he-IL",{month:"long",year:"numeric"});
-    mbsStatus.innerHTML = 'מוצג חודש: <b>'+ym+'</b>. ספקים: '+suppliers.length+' | חשבוניות בחודש: '+filtered.length;
-  }
-
   async function refreshAll(){
-    suppliers = await loadSuppliers(); invoices  = await loadInvoices();
+    suppliers = await loadSuppliers();
+    window.__allInvoices = await loadInvoicesAll();
     if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
     renderAllViews();
   }
-  function renderAllViews(){
-    renderSuppliers(); renderLedger();
-    if(!summaryView.classList.contains("hidden")) renderSummary();
-    if(!allView.classList.contains("hidden")) renderAllSuppliersSummary();
-    if(!monthlyBySupplierView.classList.contains("hidden")) renderMonthlyBySupplier();
+  function renderAllViews(){ renderSuppliers(); renderLedger(); if(!monthlyPane.classList.contains('hidden')) renderMonthly(); }
+
+  // ===== START v1.3.2: Monthly Summary =====
+  function monthStartEnd(ym){ // ym = 'YYYY-MM'
+    const [y,m] = ym.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m-1, 1));
+    const end   = new Date(Date.UTC(y, m, 1));
+    // to ISO string yyyy-mm-dd (no time)
+    const toISODate = d => d.toISOString().slice(0,10);
+    return { startISO: toISODate(start), endISO: toISODate(end) };
   }
 
-  async function boot(){
-    // Create client
-    const make = window.supabase?.createClient ? window.supabase.createClient : (await import('https://esm.sh/@supabase/supabase-js@2')).createClient;
-    supabase = make("https://uzaqpwbejceyuhnmfdmq.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A", { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
+  async function renderMonthly(){
+    // אם אין חודש נבחר, קח את הנוכחי
+    if(!monthPicker.value){
+      const now = new Date();
+      const ym = now.toISOString().slice(0,7); // YYYY-MM
+      monthPicker.value = ym;
+    }
+    const { startISO, endISO } = monthStartEnd(monthPicker.value);
 
-    // Wire buttons
-    wire(loginBtn, onLogin); wire(logoutBtn, onLogout);
+    // שליפה לחודש:
+    const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
 
-    // Auto-load if session exists
-    let { data: { session } } = await supabase.auth.getSession();
-    if(session?.user){ currentUser=session.user; setAuthUI(true, currentUser.email); await refreshAll(); }
+    // קיבוץ לפי ספק
+    const totalsBySupplier = {};
+    monthInvoices.forEach(inv=>{
+      const sid = inv.supplier_id;
+      totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
+    });
 
-    // React to auth changes (login/logout/refresh)
-    supabase.auth.onAuthStateChange(async (_event, sess)=>{
-      if(sess?.user){
-        currentUser=sess.user; setAuthUI(true, currentUser.email); await refreshAll();
-      } else {
-        currentUser=null; setAuthUI(false);
-      }
+    // בניית טבלה: כל הספקים (גם אם אין להם בחודש הזה – יופיעו עם 0)
+    monthlyTableBody.innerHTML = '';
+    suppliers.forEach(s=>{
+      const total = totalsBySupplier[s.id] || 0;
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td');
+      const tdSum  = document.createElement('td');
+
+      const link = document.createElement('button');
+      link.className = 'btn small';
+      link.textContent = s.name;
+      link.onclick = ()=>{
+        // מעבר לטאב ספקים ובחירה
+        setActiveTab('suppliers');
+        activeSupplierId = s.id;
+        renderAllViews();
+        // גלילה למעלה לכרטסת
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      tdName.appendChild(link);
+      tdSum.textContent = fmt(total);
+      tr.appendChild(tdName); tr.appendChild(tdSum);
+      monthlyTableBody.appendChild(tr);
     });
   }
+  // ===== END v1.3.2 =====
 
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+  // Tabs logic
+  function setActiveTab(which){
+    [tabSuppliers, tabMonthly].forEach(b=>b && b.classList.remove('active'));
+    if(which==='suppliers'){
+      tabSuppliers && tabSuppliers.classList.add('active');
+      suppliersPane.classList.remove('hidden');
+      ledgerPane.classList.remove('hidden');
+      monthlyPane.classList.add('hidden');
+    } else if(which==='monthly'){
+      tabMonthly && tabMonthly.classList.add('active');
+      suppliersPane.classList.add('hidden');
+      ledgerPane.classList.add('hidden');
+      monthlyPane.classList.remove('hidden');
+      renderMonthly();
+    }
+  }
+
+  // === Boot ===
+  async function boot(){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
+    // auth
+    wire(loginBtn, async ()=>{
+      authMsg.textContent='מתחבר...';
+      const email=(emailEl.value||'').trim(); const password=passEl.value||'';
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if(error){ authMsg.textContent='שגיאה: '+error.message; authMsg.className='err'; }
+      else {
+        const { data: { session } } = await supabase.auth.getSession();
+        currentUser=session?.user||null; setAuthUI(!!currentUser, currentUser?.email);
+        setActiveTab('suppliers'); // ברירת מחדל
+        await refreshAll();
+      }
+    });
+    wire(logoutBtn, async ()=>{ await supabase.auth.signOut(); currentUser=null; setAuthUI(false); });
+
+    // suppliers actions
+    wire($('#addSupplierBtn'), async ()=>{
+      const name=(supplierName.value||'').trim(); if(!name) return;
+      await addSupplier(name); supplierName.value=''; await refreshAll();
+    });
+    wire($('#addInvoiceBtn'), async ()=>{
+      if(!activeSupplierId) return;
+      const date=invDate.value||new Date().toISOString().slice(0,10);
+      const amount=parseFloat(invAmount.value||'0'); const notes=invNotes.value||'';
+      await addInvoice(activeSupplierId, date, amount, notes);
+      invAmount.value=''; invNotes.value=''; await refreshAll();
+    });
+
+    // tabs
+    on(tabSuppliers,'click', ()=> setActiveTab('suppliers'));
+    on(tabMonthly,'click',  ()=> setActiveTab('monthly'));
+    on(refreshMonthlyBtn,'click', renderMonthly);
+    on(monthPicker,'change', renderMonthly);
+
+    // session
+    const { data: { session } } = await supabase.auth.getSession();
+    if(session?.user){
+      currentUser=session.user; setAuthUI(true, currentUser.email);
+      setActiveTab('suppliers');
+      await refreshAll();
+    }
+    supabase.auth.onAuthStateChange(async (_e, sess)=>{
+      if(sess?.user){ currentUser=sess.user; setAuthUI(true, currentUser.email); setActiveTab('suppliers'); await refreshAll(); }
+      else { currentUser=null; setAuthUI(false); }
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 </script>
 </html>
