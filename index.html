@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ניהול חשבוניות ספקים — PROD v1.4-fix</title>
+<title>ניהול חשבוניות ספקים — PROD v1.4-auto</title>
 <style>
   :root{ --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --text:#0f172a; --muted:#64748b; --accent:#111827; --radius:14px; }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
@@ -33,7 +33,7 @@
 <header>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <h1>ניהול חשבוניות ספקים</h1>
-    <span class="version">PROD v1.4-fix</span>
+    <span class="version">PROD v1.4-auto</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row" id="authBar">
@@ -64,6 +64,7 @@
       <button id="tabMonthlyBySupplier" class="tab" type="button">סיכום חודשי לפי ספקים</button>
     </div>
 
+    <!-- Ledger -->
     <div id="ledgerView">
       <div id="emptyState" class="muted">בחר/י ספק משמאל כדי להתחיל</div>
       <div id="ledger" class="hidden">
@@ -91,6 +92,7 @@
       </div>
     </div>
 
+    <!-- Supplier Summary (single supplier) -->
     <div id="summaryView" class="hidden">
       <div id="summaryEmpty" class="muted">בחר/י ספק משמאל כדי לראות סיכום חודשי.</div>
       <div id="summaryBody" class="hidden">
@@ -113,6 +115,7 @@
       </div>
     </div>
 
+    <!-- All suppliers summary -->
     <div id="allView" class="hidden">
       <div class="row" style="justify-content:space-between">
         <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי — כל הספקים</h2>
@@ -132,6 +135,7 @@
       </div>
     </div>
 
+    <!-- Monthly by supplier (list) -->
     <div id="monthlyBySupplierView" class="hidden">
       <div class="row" style="justify-content:space-between;align-items:center">
         <h2 style="margin:0 0 6px;font-size:18px;font-weight:700">סיכום חודשי לפי ספקים</h2>
@@ -180,9 +184,9 @@
 
   function wire(el, fn){
     if(!el) return;
-    el.addEventListener("click", fn);
-    el.addEventListener("touchstart", e=>{ e.preventDefault(); fn(); });
-    el.addEventListener("pointerup", fn);
+    el.addEventListener("click", fn, {passive:true});
+    el.addEventListener("touchstart", (e)=>{ e.preventDefault(); fn(); }, {passive:false});
+    el.addEventListener("pointerup", fn, {passive:true});
   }
 
   async function createClientWithFallback(){
@@ -214,20 +218,14 @@
     }
   }
 
-  async function refreshSession(){
-    const { data: { session } } = await supabase.auth.getSession();
-    currentUser = session?.user || null;
-    setAuthUI(!!currentUser, currentUser?.email);
-    if(currentUser) await refreshAll();
-  }
-
   async function onLogin(){
     authMsg.textContent = "מתחבר...";
     const email=(emailEl.value||"").trim(); const password=passEl.value||"";
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if(error){ authMsg.innerHTML = '<span class="error">שגיאה: '+escapeHtml(error.message)+'</span>'; }
-    else { authMsg.innerHTML = '<span class="ok">מחובר</span>'; }
-    await refreshSession();
+    if(error){ authMsg.innerHTML = '<span class="error">שגיאה: '+escapeHtml(error.message)+'</span>'; return; }
+    authMsg.innerHTML = '<span class="ok">מחובר</span>';
+    const { data: { session } } = await supabase.auth.getSession();
+    if(session?.user){ currentUser=session.user; setAuthUI(true, currentUser.email); await refreshAll(); }
   }
   async function onLogout(){
     await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
@@ -244,7 +242,6 @@
   const ledgerView=document.getElementById("ledgerView"), summaryView=document.getElementById("summaryView"), allView=document.getElementById("allView"), monthlyBySupplierView=document.getElementById("monthlyBySupplierView");
   const summaryEmpty=document.getElementById("summaryEmpty"), summaryBody=document.getElementById("summaryBody"), summaryTitle=document.getElementById("summaryTitle"), rangeSelect=document.getElementById("rangeSelect"), summaryTableBody=document.getElementById("summaryTableBody"), barChart=document.getElementById("barChart");
   const rangeSelectAll=document.getElementById("rangeSelectAll"), summaryTableBodyAll=document.getElementById("summaryTableBodyAll"), barChartAll=document.getElementById("barChartAll");
-
   const mbsMonth=document.getElementById("mbsMonth"), mbsYear=document.getElementById("mbsYear"), mbsRefresh=document.getElementById("mbsRefresh"), mbsTable=document.getElementById("mbsTable"), mbsGrand=document.getElementById("mbsGrand"), mbsGrandFoot=document.getElementById("mbsGrandFoot"), mbsStatus=document.getElementById("mbsStatus");
 
   function setActiveTab(activeBtn, showViews, hideViews){
@@ -286,6 +283,7 @@
     if(error) authMsg.innerHTML='<span class="error">שגיאה במחיקת חשבונית: '+escapeHtml(error.message)+'</span>';
   }
 
+  // ===== Renders =====
   function renderSuppliers(){
     supplierList.innerHTML="";
     if(suppliers.length===0){
@@ -297,10 +295,8 @@
       const row=document.createElement("div"); row.className="supplier-row"+(activeSupplierId===s.id?" active":"");
       const nameBtn=document.createElement("button"); nameBtn.type="button"; nameBtn.className="supplier-name btn"; nameBtn.style.border="none"; nameBtn.style.background="transparent"; nameBtn.style.textAlign="right"; nameBtn.textContent=s.name;
       const delBtn=document.createElement("button"); delBtn.type="button"; delBtn.className="btn small"; delBtn.textContent="מחק";
-
       wire(nameBtn, ()=>{ activeSupplierId=s.id; renderAllViews(); });
       wire(delBtn, async ()=>{ if(!confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')) return; await deleteSupplier(s.id); await refreshAll(); });
-
       row.appendChild(nameBtn); row.appendChild(delBtn);
       li.appendChild(row); supplierList.appendChild(li);
     });
@@ -316,18 +312,14 @@
     document.getElementById("grandTotal").textContent = fmtMoney(total);
     invoiceTableBody.innerHTML="";
     if(inv.length===0){
-      const tr=document.createElement("tr"); const td=document.createElement("td");
-      td.colSpan=4; td.className="muted"; td.style.textAlign="center"; td.style.padding="16px"; td.textContent="אין רשומות לתצוגה";
-      tr.appendChild(td); invoiceTableBody.appendChild(tr);
+      const tr=document.createElement("tr"); const td=document.createElement("td"); td.colSpan=4; td.className="muted"; td.style.textAlign="center"; td.style.padding="16px"; td.textContent="אין רשומות לתצוגה"; tr.appendChild(td); invoiceTableBody.appendChild(tr);
     } else {
       inv.forEach((i)=>{
         const tr=document.createElement("tr");
-        const td1=document.createElement("td"); td1.textContent = fmtDate(i.date);
+        const td1=document.createElement("td"); td1.textContent = new Date(i.date).toLocaleDateString("he-IL");
         const td2=document.createElement("td"); td2.textContent = fmtMoney(i.amount);
         const td3=document.createElement("td"); td3.textContent = i.notes||"";
-        const td4=document.createElement("td"); const del=document.createElement("button"); del.className="btn small"; del.textContent="מחק";
-        wire(del, async ()=>{ await deleteInvoice(i.id); await refreshAll(); });
-        td4.appendChild(del);
+        const td4=document.createElement("td"); const del=document.createElement("button"); del.className="btn small"; del.textContent="מחק"; wire(del, async ()=>{ await deleteInvoice(i.id); await refreshAll(); }); td4.appendChild(del);
         tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
         invoiceTableBody.appendChild(tr);
       });
@@ -337,21 +329,17 @@
   function groupByMonth(relevantInvoices){
     const map=new Map();
     for(const i of relevantInvoices){
-      const k = monthKey(new Date(i.date));
-      const v = Number(i.amount)||0;
-      if(!k || !isFinite(v)) continue;
-      map.set(k, (map.get(k)||0) + v);
+      const k = monthKey(new Date(i.date)); const v = Number(i.amount)||0;
+      if(!k || !isFinite(v)) continue; map.set(k, (map.get(k)||0) + v);
     }
     return Array.from(map.entries()).sort();
   }
   function getLastNMonthsData(grouped, n){
     if(!n || n<=0) return grouped;
-    const today=new Date();
-    const seq=[];
+    const today=new Date(); const seq=[];
     for(let i=n-1;i>=0;i--){
       const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
-      const k = monthKey(d);
-      const found = grouped.find(([mk])=> mk===k);
+      const k = monthKey(d); const found = grouped.find(([mk])=> mk===k);
       seq.push([k, found? found[1]: 0]);
     }
     return seq;
@@ -359,8 +347,7 @@
   function drawBarChart(rows, canvas){
     const ctx=canvas.getContext("2d"); const W=canvas.width, H=canvas.height;
     ctx.clearRect(0,0,W,H);
-    const padL=60, padR=20, padT=20, padB=40;
-    const chartW=W-padL-padR, chartH=H-padT-padB;
+    const padL=60, padR=20, padT=20, padB=40; const chartW=W-padL-padR, chartH=H-padT-padB;
     const values=rows.map(r=>r[1]); const maxVal=Math.max(10, ...values, 1); const y0=padT+chartH;
     ctx.strokeStyle="#e5e7eb"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,y0); ctx.lineTo(padL+chartW,y0); ctx.stroke();
     ctx.fillStyle="#64748b"; ctx.font="12px system-ui";
@@ -435,17 +422,28 @@
   }
 
   async function boot(){
-    supabase = await createClientWithFallback(); if(!supabase) return;
+    // Create client
+    const make = window.supabase?.createClient ? window.supabase.createClient : (await import('https://esm.sh/@supabase/supabase-js@2')).createClient;
+    supabase = make("https://uzaqpwbejceyuhnmfdmq.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A", { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
+
+    // Wire buttons
     wire(loginBtn, onLogin); wire(logoutBtn, onLogout);
-    const { data: { session } } = await supabase.auth.getSession();
-    currentUser = session?.user || null; setAuthUI(!!currentUser, currentUser?.email);
-    if(currentUser) await refreshAll();
+
+    // Auto-load if session exists
+    let { data: { session } } = await supabase.auth.getSession();
+    if(session?.user){ currentUser=session.user; setAuthUI(true, currentUser.email); await refreshAll(); }
+
+    // React to auth changes (login/logout/refresh)
+    supabase.auth.onAuthStateChange(async (_event, sess)=>{
+      if(sess?.user){
+        currentUser=sess.user; setAuthUI(true, currentUser.email); await refreshAll();
+      } else {
+        currentUser=null; setAuthUI(false);
+      }
+    });
   }
 
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot); else boot();
-
-  // Simple helpers
-  function fmtDate(iso){ const d=new Date(iso); return isNaN(d.getTime()) ? iso : d.toLocaleDateString("he-IL"); }
 })();
 </script>
 </html>
