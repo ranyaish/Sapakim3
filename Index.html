@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ניהול ספקים — v2-staging (טאב סיכום חודשי)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --ink:#0f172a; --muted:#64748b; --accent:#111827; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial }
+  header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--border);
+           padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap }
+  h1 { margin:0; font-size:20px; font-weight:800 }
+  .muted { color:var(--muted) }
+  .btn { border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 14px; cursor:pointer; touch-action:manipulation }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent) }
+  .btn.small { padding:6px 10px; font-size:14px }
+  input,select { width:100%; border:1px solid var(--border); border-radius:12px; padding:10px; background:#fff }
+  main { padding:16px; display:grid; grid-template-columns:1fr; gap:16px }
+  @media(min-width:980px){ main { grid-template-columns:320px 1fr } }
+  .card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:14px }
+  ul { list-style:none; margin:0; padding:0 }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .grow { flex:1 }
+  .supplier-row { display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--border);
+                  border-radius:12px; padding:10px; background:#fff }
+  .supplier-row.active { outline:2px solid #111827; outline-offset:2px; background:#eef2ff }
+  .supplier-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; background:transparent; border:none }
+  table { width:100%; border-collapse:separate; border-spacing:0 }
+  th,td { text-align:right; padding:10px; border-top:1px solid var(--border) }
+  thead th { background:#f3f4f6; border-top:none }
+  .hidden { display:none }
+  .badge { padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#fff }
+  .ok { color:#047857 } .err { color:#b91c1c }
+
+  /* Tabs */
+  .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); padding:0 16px }
+  .tab-btn { border:none; background:transparent; padding:12px 10px; cursor:pointer; border-bottom:2px solid transparent; font-weight:600 }
+  .tab-btn.active { border-color:var(--accent); color:var(--accent) }
+</style>
+
+<header>
+  <div class="row">
+    <h1>ניהול ספקים</h1>
+    <span class="badge">v1.1-staging</span>
+    <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
+  </div>
+  <div class="row">
+    <input id="email" placeholder="אימייל" autocomplete="username">
+    <input id="password" placeholder="סיסמה" type="password" autocomplete="current-password">
+    <button id="loginBtn" class="btn primary">כניסה</button>
+    <button id="logoutBtn" class="btn hidden">יציאה</button>
+    <span id="whoami" class="badge hidden"></span>
+    <span id="authMsg" class="muted"></span>
+  </div>
+</header>
+
+<!-- NAV TABS -->
+<div class="tabs hidden" id="navTabs">
+  <button class="tab-btn active" id="tabSuppliers">ספקים</button>
+  <!-- START v1.3.2: Monthly Summary -->
+  <button class="tab-btn" id="tabMonthly">סיכום חודשי</button>
+  <!-- END v1.3.2 -->
+</div>
+
+<main id="app" class="hidden">
+  <!-- SUPPLIERS + LEDGER (כמו v1.3.1) -->
+  <aside class="card" id="suppliersPane">
+    <h3 style="margin:0 0 10px">ספקים</h3>
+    <div class="row">
+      <input id="supplierName" class="grow" placeholder="שם ספק">
+      <button id="addSupplierBtn" class="btn primary">הוסף</button>
+    </div>
+    <ul id="supplierList" style="margin-top:10px;max-height:60vh;overflow:auto"></ul>
+  </aside>
+
+  <section class="card" id="ledgerPane">
+    <div id="emptyState" class="muted">בחר/י ספק משמאל כדי להתחיל</div>
+    <div id="ledger" class="hidden">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <h3 id="ledgerTitle" style="margin:0 0 4px">כרטסת</h3>
+          <div class="muted">הוסף/י חשבונית: תאריך, סכום, הערות (לא חובה)</div>
+        </div>
+        <div class="badge">סה״כ לספק: <b id="grandTotal">₪0.00</b></div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <input type="date" id="invDate">
+        <input type="number" step="any" id="invAmount" placeholder="0">
+        <input id="invNotes" class="grow" placeholder="הערות (אופציונלי)">
+        <button id="addInvoiceBtn" class="btn primary">הוסף חשבונית</button>
+      </div>
+
+      <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
+        <table>
+          <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
+        <tbody id="invoiceTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- START v1.3.2: Monthly Summary -->
+  <section class="card hidden" id="monthlyPane" style="grid-column:1 / -1">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="margin:0">סיכום חודשי לכל הספקים</h3>
+      <div class="row">
+        <label class="muted" for="monthPicker">בחר חודש:</label>
+        <input type="month" id="monthPicker" style="width:auto">
+        <button id="refreshMonthlyBtn" class="btn">רענן</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
+      <table>
+        <thead><tr><th>ספק</th><th>סה״כ לחודש</th></tr></thead>
+        <tbody id="monthlyTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+  <!-- END v1.3.2 -->
+</main>
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s);
+  const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
+  const wire=(el,fn)=>{ on(el,'click',fn); on(el,'touchstart',e=>{e.preventDefault();fn();},{passive:false}); on(el,'pointerup',fn); };
+  const fmt=n=> new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
+
+  // === CONFIG (מולא עבורך) ===
+  const SUPABASE_URL = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A';
+
+  let supabase=null, currentUser=null;
+  let suppliers=[], invoices=[], activeSupplierId=null;
+
+  const authMsg=$('#authMsg'), appEl=$('#app'), emailEl=$('#email'), passEl=$('#password'),
+        loginBtn=$('#loginBtn'), logoutBtn=$('#logoutBtn'), whoami=$('#whoami');
+
+  // panes
+  const navTabs=$('#navTabs'), tabSuppliers=$('#tabSuppliers'), tabMonthly=$('#tabMonthly');
+  const suppliersPane=$('#suppliersPane'), ledgerPane=$('#ledgerPane');
+  const monthlyPane=$('#monthlyPane');
+
+  // suppliers / ledger
+  const supplierName=$('#supplierName'), supplierList=$('#supplierList');
+  const emptyState=$('#emptyState'), ledger=$('#ledger'), ledgerTitle=$('#ledgerTitle'),
+        invDate=$('#invDate'), invAmount=$('#invAmount'), invNotes=$('#invNotes'),
+        invoiceTableBody=$('#invoiceTableBody'), grandTotalEl=$('#grandTotal');
+
+  // monthly
+  const monthPicker=$('#monthPicker'), monthlyTableBody=$('#monthlyTableBody'), refreshMonthlyBtn=$('#refreshMonthlyBtn');
+
+  function setAuthUI(on, email){
+    if(on){
+      appEl.classList.remove('hidden');
+      navTabs.classList.remove('hidden');
+      logoutBtn.classList.remove('hidden');
+      whoami.classList.remove('hidden');
+      whoami.textContent=email||'';
+      emailEl.classList.add('hidden'); passEl.classList.add('hidden'); loginBtn.classList.add('hidden');
+      authMsg.textContent='מחובר'; authMsg.className='ok';
+    } else {
+      appEl.classList.add('hidden');
+      navTabs.classList.add('hidden');
+      logoutBtn.classList.add('hidden');
+      whoami.classList.add('hidden');
+      whoami.textContent='';
+      emailEl.classList.remove('hidden'); passEl.classList.remove('hidden'); loginBtn.classList.remove('hidden');
+      authMsg.textContent=''; authMsg.className='';
+    }
+  }
+
+  // ===== DB =====
+  async function loadSuppliers(){ const { data, error } = await supabase.from('suppliers').select('*').order('created_at',{ascending:false}); if(error) console.error(error); return data||[]; }
+  async function loadInvoicesForMonth(isoStart, isoEnd){
+    // שליפת חשבוניות לחודש נבחר
+    const { data, error } = await supabase.from('invoices').select('*').gte('date', isoStart).lt('date', isoEnd);
+    if(error) console.error(error);
+    return data||[];
+  }
+  async function loadInvoicesAll(){ const { data, error } = await supabase.from('invoices').select('*').order('date',{ascending:false}); if(error) console.error(error); return data||[]; }
+  async function addSupplier(name){
+  // ניסיון 1: להוסיף ולהחזיר id ישירות
+  const { data, error } = await supabase
+    .from('suppliers')
+    .insert({ name })
+    .select('id')
+    .maybeSingle(); // עדיף על single() כדי לא להפיל שגיאה קשיחה
+
+  if (!error && data && data.id) return data.id;
+
+  // אם ה-select נכשל (למשל RLS מאפשר insert אבל לא select)
+  if (error) console.error('addSupplier insert/select error:', error);
+
+  // ניסיון 2: נשלוף את הספק האחרון בשם הזה
+  const { data: rows, error: selErr } = await supabase
+    .from('suppliers')
+    .select('id,name,created_at')
+    .eq('name', name)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (selErr) { console.error('post-insert select error:', selErr); return null; }
+  if (rows && rows.length) return rows[0].id;
+  return null;
+}
+  async function deleteSupplier(id){ const { error } = await supabase.from('suppliers').delete().eq('id',id); if(error) console.error(error); }
+  async function addInvoice(supplier_id,date,amount,notes){ const { error } = await supabase.from('invoices').insert({supplier_id,date,amount,notes}); if(error) console.error(error); }
+  async function deleteInvoice(id){ const { error } = await supabase.from('invoices').delete().eq('id',id); if(error) console.error(error); }
+
+  // ===== Suppliers & Ledger (ללא שינויי התנהגות) =====
+  function renderSuppliers(){
+    supplierList.innerHTML='';
+    if(suppliers.length===0){
+      const li=document.createElement('li'); li.className='muted'; li.textContent='אין ספקים. הוסף/י אחד למעלה.';
+      supplierList.appendChild(li); activeSupplierId=null; renderLedger(); return;
+    }
+    suppliers.forEach(s=>{
+      const li=document.createElement('li');
+      const row=document.createElement('div'); row.className='supplier-row'+(activeSupplierId===s.id?' active':'');
+      const btn=document.createElement('button'); btn.className='supplier-name'; btn.textContent=s.name;
+      const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+      btn.onclick=()=>{activeSupplierId=s.id; renderAllViews();};
+      del.onclick=async()=>{ if(confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')){ await deleteSupplier(s.id); await refreshAll(); } };
+      row.appendChild(btn); row.appendChild(del); li.appendChild(row); supplierList.appendChild(li);
+    });
+  }
+
+  function renderLedger(){
+    const invoiceTableBody = $('#invoiceTableBody');
+    if(!activeSupplierId){ emptyState.classList.remove('hidden'); ledger.classList.add('hidden'); return; }
+    emptyState.classList.add('hidden'); ledger.classList.remove('hidden');
+    const s = suppliers.find(x=>x.id===activeSupplierId);
+    ledgerTitle.textContent='כרטסת: '+(s?.name||'');
+
+    // כאן נשתמש בכל החשבוניות (לא לחודש) – כמו קודם
+    const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
+    const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
+    grandTotalEl.textContent = fmt(total);
+
+    invoiceTableBody.innerHTML='';
+    if(arr.length===0){
+      const tr=document.createElement('tr'); const td=document.createElement('td');
+      td.colSpan=4; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
+      tr.appendChild(td); invoiceTableBody.appendChild(tr);
+    } else {
+      arr.forEach(i=>{
+        const tr=document.createElement('tr');
+        const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
+        const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
+        const td3=document.createElement('td'); td3.textContent=i.notes||'';
+        const td4=document.createElement('td'); const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+        del.onclick=async()=>{ await deleteInvoice(i.id); await refreshAll(); };
+        td4.appendChild(del);
+        [td1,td2,td3,td4].forEach(x=>tr.appendChild(x)); invoiceTableBody.appendChild(tr);
+      });
+    }
+  }
+
+  async function refreshAll(){
+    suppliers = await loadSuppliers();
+    window.__allInvoices = await loadInvoicesAll();
+    if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
+    renderAllViews();
+  }
+  function renderAllViews(){ renderSuppliers(); renderLedger(); if(!monthlyPane.classList.contains('hidden')) renderMonthly(); }
+
+  // ===== START v1.3.2: Monthly Summary =====
+  function monthStartEnd(ym){ // ym = 'YYYY-MM'
+    const [y,m] = ym.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m-1, 1));
+    const end   = new Date(Date.UTC(y, m, 1));
+    // to ISO string yyyy-mm-dd (no time)
+    const toISODate = d => d.toISOString().slice(0,10);
+    return { startISO: toISODate(start), endISO: toISODate(end) };
+  }
+
+  async function renderMonthly(){
+  if(!monthPicker.value){
+    const now = new Date();
+    monthPicker.value = now.toISOString().slice(0,7); // YYYY-MM
+  }
+  const { startISO, endISO } = monthStartEnd(monthPicker.value);
+
+  // שליפת חשבוניות לחודש
+  const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
+
+  // קיבוץ לפי ספק
+  const totalsBySupplier = {};
+  monthInvoices.forEach(inv=>{
+    const sid = inv.supplier_id;
+    totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
+  });
+
+  // טבלה: כל הספקים (גם מי שאין לו באותו חודש → 0)
+  monthlyTableBody.innerHTML = '';
+  suppliers.forEach(s=>{
+    const total = totalsBySupplier[s.id] || 0;
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    const tdSum  = document.createElement('td');
+
+    const link = document.createElement('button');
+    link.className = 'btn small';
+    link.textContent = s.name;
+    link.onclick = ()=>{
+      setActiveTab('suppliers');
+      activeSupplierId = s.id;
+      renderAllViews();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    tdName.appendChild(link);
+    tdSum.textContent = fmt(total);
+    tr.appendChild(tdName); tr.appendChild(tdSum);
+    monthlyTableBody.appendChild(tr);
+  });
+
+  // שורת סיכום כוללת
+  const grand = Object.values(totalsBySupplier)
+    .reduce((a,b)=> a + (Number(b)||0), 0);
+  const trSum  = document.createElement('tr');
+  const tdLab  = document.createElement('td');
+  const tdVal  = document.createElement('td');
+  tdLab.innerHTML = '<b>סה״כ כל הספקים</b>';
+  tdVal.innerHTML = '<b>' + fmt(grand) + '</b>';
+  trSum.appendChild(tdLab);
+  trSum.appendChild(tdVal);
+  monthlyTableBody.appendChild(trSum);
+}
+  // ===== END v1.3.2 =====
+
+  // Tabs logic
+  function setActiveTab(which){
+    [tabSuppliers, tabMonthly].forEach(b=>b && b.classList.remove('active'));
+    if(which==='suppliers'){
+      tabSuppliers && tabSuppliers.classList.add('active');
+      suppliersPane.classList.remove('hidden');
+      ledgerPane.classList.remove('hidden');
+      monthlyPane.classList.add('hidden');
+    } else if(which==='monthly'){
+      tabMonthly && tabMonthly.classList.add('active');
+      suppliersPane.classList.add('hidden');
+      ledgerPane.classList.add('hidden');
+      monthlyPane.classList.remove('hidden');
+      renderMonthly();
+    }
+  }
+
+  // === Boot ===
+  async function boot(){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
+    // auth
+    wire(loginBtn, async ()=>{
+      authMsg.textContent='מתחבר...';
+      const email=(emailEl.value||'').trim(); const password=passEl.value||'';
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if(error){ authMsg.textContent='שגיאה: '+error.message; authMsg.className='err'; }
+      else {
+        const { data: { session } } = await supabase.auth.getSession();
+        currentUser=session?.user||null; setAuthUI(!!currentUser, currentUser?.email);
+        setActiveTab('suppliers'); // ברירת מחדל
+        await refreshAll();
+      }
+    });
+    wire(logoutBtn, async ()=>{ await supabase.auth.signOut(); currentUser=null; setAuthUI(false); });
+
+    // suppliers actions
+    on(document.getElementById('addSupplierBtn'), 'click', async (e)=>{
+  e.preventDefault();
+  e.stopPropagation();
+
+  // אנטי-כפולים: מונע לחיצות כפולות/אירועים כפולים
+  if (window.__addingSupplier) return;
+  window.__addingSupplier = true;
+
+  try {
+  const name = (supplierName.value || '').trim();
+  if (!name) return;
+
+  let newId = await addSupplier(name);
+  supplierName.value = '';
+  await refreshAll();
+
+  if (!newId && Array.isArray(suppliers)) {
+    const s = suppliers.find(x => x && x.name === name);
+    if (s) newId = s.id;
+  }
+  if (newId) {
+    activeSupplierId = newId;
+    renderAllViews();
+  }
+} finally {
+  // משחרר את הנעילה אחרי רגע קצר כדי למנוע כפילויות
+  setTimeout(()=>{ window.__addingSupplier = false; }, 300);
+}
+});
+    on(document.getElementById('addInvoiceBtn'), 'click', async (e)=>{
+  e.preventDefault();
+  e.stopPropagation();
+
+  // אנטי-כפולים: מונע לחיצה כפולה/אירועים כפולים במובייל
+  if (window.__addingInvoice) return;
+  window.__addingInvoice = true;
+
+  try {
+    if(!activeSupplierId) return;
+    const date = invDate.value || new Date().toISOString().slice(0,10);
+    const amount = parseFloat(invAmount.value || '0');
+    const notes = invNotes.value || '';
+    await addInvoice(activeSupplierId, date, amount, notes);
+    invAmount.value = '';
+    invNotes.value = '';
+    await refreshAll();
+  } finally {
+    // משחררים את הנעילה אחרי רגע קצר
+    setTimeout(()=>{ window.__addingInvoice = false; }, 300);
+  }
+});
+
+    // tabs
+    on(tabSuppliers,'click', ()=> setActiveTab('suppliers'));
+    on(tabMonthly,'click',  ()=> setActiveTab('monthly'));
+    on(refreshMonthlyBtn,'click', renderMonthly);
+    on(monthPicker,'change', renderMonthly);
+
+    // session
+    const { data: { session } } = await supabase.auth.getSession();
+    if(session?.user){
+      currentUser=session.user; setAuthUI(true, currentUser.email);
+      setActiveTab('suppliers');
+      await refreshAll();
+    }
+    supabase.auth.onAuthStateChange(async (_e, sess)=>{
+      if(sess?.user){ currentUser=sess.user; setAuthUI(true, currentUser.email); setActiveTab('suppliers'); await refreshAll(); }
+      else { currentUser=null; setAuthUI(false); }
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
+</html>
