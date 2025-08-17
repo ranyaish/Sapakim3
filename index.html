@@ -412,7 +412,7 @@ window.addEventListener('unhandledrejection', e=>{
       authMsg.className='muted';
       try {
         const email=(emailEl.value||'').trim();
-        const password=(passEl.value||'').trim();
+        const password=(passEl.value||'')
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if(error){
           console.error('LOGIN ERROR:', error);
