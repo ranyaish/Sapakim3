@@ -315,12 +315,19 @@ window.addEventListener('unhandledrejection', e=>{
 
   // ===== Monthly Summary (ללא שינוי פונקציונלי) =====
   function monthStartEnd(ym){
-    const [y,m] = ym.split('-').map(Number);
-    const start = new Date(Date.UTC(y, m-1, 1));
-    const end   = new Date(Date.UTC(y, m, 1));
+  const [yy, mm] = (ym || '').split('-').map(Number);
+  if (!yy || !mm) { // הגנה אם ym ריק/לא תקין
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 1));
     const toISO = d => d.toISOString().slice(0,10);
     return { startISO: toISO(start), endISO: toISO(end) };
   }
+  const start = new Date(Date.UTC(yy, mm-1, 1));
+  const end   = new Date(Date.UTC(yy, mm, 1));
+  const toISO = d => d.toISOString().slice(0,10);
+  return { startISO: toISO(start), endISO: toISO(end) };
+}
 
   async function renderMonthly(){
     if(!monthPicker.value){
