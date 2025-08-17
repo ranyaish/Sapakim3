@@ -2,24 +2,9 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1.2-staging (פופ־אפ בחירת ספק)</title>
+<title>ניהול ספקים — v2-staging (טאב סיכום חודשי)</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
-<script>
-// לוכדי שגיאות כלליים כדי לראות הודעה במקום "מתחבר..." תקוע
-window.addEventListener('error', e=>{
-  const el = document.getElementById('authMsg');
-  if (el) { el.textContent = 'שגיאת סקריפט: ' + (e.message || e.error); el.className = 'err'; }
-  console.error('window.onerror:', e);
-});
-window.addEventListener('unhandledrejection', e=>{
-  const el = document.getElementById('authMsg');
-  if (el) { el.textContent = 'שגיאה: ' + (e.reason?.message || e.reason); el.className = 'err'; }
-  console.error('unhandledrejection:', e);
-});
-</script>
-  
 <style>
   :root { --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --ink:#0f172a; --muted:#64748b; --accent:#111827; }
   * { box-sizing:border-box }
@@ -53,20 +38,12 @@ window.addEventListener('unhandledrejection', e=>{
   .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); padding:0 16px }
   .tab-btn { border:none; background:transparent; padding:12px 10px; cursor:pointer; border-bottom:2px solid transparent; font-weight:600 }
   .tab-btn.active { border-color:var(--accent); color:var(--accent) }
-
-  /* v1.3.3: modal supplier picker */
-  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40; }
-  .modal { position:fixed; left:0; right:0; top:10%; margin:auto; max-width:560px; background:#fff;
-           border:1px solid var(--border); border-radius:14px; padding:14px; z-index:50; }
-  .modal h3 { margin:0 0 10px }
-  .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
-  .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
 </style>
 
 <header>
   <div class="row">
     <h1>ניהול ספקים</h1>
-    <span class="badge">v1</span>
+    <span class="badge">v1.1-staging</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row">
@@ -82,11 +59,13 @@ window.addEventListener('unhandledrejection', e=>{
 <!-- NAV TABS -->
 <div class="tabs hidden" id="navTabs">
   <button class="tab-btn active" id="tabSuppliers">ספקים</button>
+  <!-- START v1.3.2: Monthly Summary -->
   <button class="tab-btn" id="tabMonthly">סיכום חודשי</button>
+  <!-- END v1.3.2 -->
 </div>
 
 <main id="app" class="hidden">
-  <!-- רשימת ספקים הישנה קיימת אך תוסתר בטאב "ספקים" כדי לעבור לפופ־אפ בלבד -->
+  <!-- SUPPLIERS + LEDGER (כמו v1.3.1) -->
   <aside class="card" id="suppliersPane">
     <h3 style="margin:0 0 10px">ספקים</h3>
     <div class="row">
@@ -104,11 +83,7 @@ window.addEventListener('unhandledrejection', e=>{
           <h3 id="ledgerTitle" style="margin:0 0 4px">כרטסת</h3>
           <div class="muted">הוסף/י חשבונית: תאריך, סכום, הערות (לא חובה)</div>
         </div>
-        <div class="row">
-          <!-- v1.3.3: כפתור פתיחת מודאל בחירת ספק -->
-          <button id="openSupplierPickerBtn" class="btn">בחר ספק</button>
-          <div class="badge">סה״כ לספק: <b id="grandTotal">₪0.00</b></div>
-        </div>
+        <div class="badge">סה״כ לספק: <b id="grandTotal">₪0.00</b></div>
       </div>
 
       <div class="row" style="margin-top:10px">
@@ -121,13 +96,13 @@ window.addEventListener('unhandledrejection', e=>{
       <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
         <table>
           <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
-          <tbody id="invoiceTableBody"></tbody>
+        <tbody id="invoiceTableBody"></tbody>
         </table>
       </div>
     </div>
   </section>
 
-  <!-- סיכום חודשי (ללא שינוי) -->
+  <!-- START v1.3.2: Monthly Summary -->
   <section class="card hidden" id="monthlyPane" style="grid-column:1 / -1">
     <div class="row" style="justify-content:space-between;align-items:center">
       <h3 style="margin:0">סיכום חודשי לכל הספקים</h3>
@@ -144,25 +119,8 @@ window.addEventListener('unhandledrejection', e=>{
       </table>
     </div>
   </section>
+  <!-- END v1.3.2 -->
 </main>
-
-<!-- v1.3.3: Supplier Picker Modal -->
-<div id="modalBackdrop" class="modal-backdrop hidden"></div>
-<div id="supplierModal" class="modal hidden" role="dialog" aria-modal="true">
-  <div class="row" style="justify-content:space-between;align-items:center">
-    <h3>בחירת ספק</h3>
-    <button id="closeSupplierPickerBtn" class="btn-close">סגור</button>
-  </div>
-
-  <div class="row" style="margin:10px 0">
-    <input id="supplierName2" class="grow" placeholder="שם ספק חדש">
-    <button id="addSupplierBtn2" class="btn primary">הוסף</button>
-  </div>
-
-  <div class="list">
-    <ul id="supplierListModal" style="list-style:none; margin:0; padding:0"></ul>
-  </div>
-</div>
 
 <script>
 (function(){
@@ -171,7 +129,7 @@ window.addEventListener('unhandledrejection', e=>{
   const wire=(el,fn)=>{ on(el,'click',fn); on(el,'touchstart',e=>{e.preventDefault();fn();},{passive:false}); on(el,'pointerup',fn); };
   const fmt=n=> new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
 
-  // === CONFIG ===
+  // === CONFIG (מולא עבורך) ===
   const SUPABASE_URL = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A';
 
@@ -194,15 +152,6 @@ window.addEventListener('unhandledrejection', e=>{
 
   // monthly
   const monthPicker=$('#monthPicker'), monthlyTableBody=$('#monthlyTableBody'), refreshMonthlyBtn=$('#refreshMonthlyBtn');
-
-  // v1.3.3: modal elements
-  const openSupplierPickerBtn = $('#openSupplierPickerBtn');
-  const modalBackdrop = $('#modalBackdrop');
-  const supplierModal = $('#supplierModal');
-  const closeSupplierPickerBtn = $('#closeSupplierPickerBtn');
-  const supplierListModal = $('#supplierListModal');
-  const supplierName2 = $('#supplierName2');
-  const addSupplierBtn2 = $('#addSupplierBtn2');
 
   function setAuthUI(on, email){
     if(on){
@@ -227,37 +176,42 @@ window.addEventListener('unhandledrejection', e=>{
   // ===== DB =====
   async function loadSuppliers(){ const { data, error } = await supabase.from('suppliers').select('*').order('created_at',{ascending:false}); if(error) console.error(error); return data||[]; }
   async function loadInvoicesForMonth(isoStart, isoEnd){
+    // שליפת חשבוניות לחודש נבחר
     const { data, error } = await supabase.from('invoices').select('*').gte('date', isoStart).lt('date', isoEnd);
     if(error) console.error(error);
     return data||[];
   }
   async function loadInvoicesAll(){ const { data, error } = await supabase.from('invoices').select('*').order('date',{ascending:false}); if(error) console.error(error); return data||[]; }
   async function addSupplier(name){
-    const { data, error } = await supabase
-      .from('suppliers')
-      .insert({ name })
-      .select('id')
-      .maybeSingle();
+  // ניסיון 1: להוסיף ולהחזיר id ישירות
+  const { data, error } = await supabase
+    .from('suppliers')
+    .insert({ name })
+    .select('id')
+    .maybeSingle(); // עדיף על single() כדי לא להפיל שגיאה קשיחה
 
-    if (!error && data && data.id) return data.id;
-    if (error) console.error('addSupplier insert/select error:', error);
+  if (!error && data && data.id) return data.id;
 
-    const { data: rows, error: selErr } = await supabase
-      .from('suppliers')
-      .select('id,name,created_at')
-      .eq('name', name)
-      .order('created_at', { ascending: false })
-      .limit(1);
+  // אם ה-select נכשל (למשל RLS מאפשר insert אבל לא select)
+  if (error) console.error('addSupplier insert/select error:', error);
 
-    if (selErr) { console.error('post-insert select error:', selErr); return null; }
-    if (rows && rows.length) return rows[0].id;
-    return null;
-  }
+  // ניסיון 2: נשלוף את הספק האחרון בשם הזה
+  const { data: rows, error: selErr } = await supabase
+    .from('suppliers')
+    .select('id,name,created_at')
+    .eq('name', name)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (selErr) { console.error('post-insert select error:', selErr); return null; }
+  if (rows && rows.length) return rows[0].id;
+  return null;
+}
   async function deleteSupplier(id){ const { error } = await supabase.from('suppliers').delete().eq('id',id); if(error) console.error(error); }
   async function addInvoice(supplier_id,date,amount,notes){ const { error } = await supabase.from('invoices').insert({supplier_id,date,amount,notes}); if(error) console.error(error); }
   async function deleteInvoice(id){ const { error } = await supabase.from('invoices').delete().eq('id',id); if(error) console.error(error); }
 
-  // ===== Suppliers & Ledger =====
+  // ===== Suppliers & Ledger (ללא שינויי התנהגות) =====
   function renderSuppliers(){
     supplierList.innerHTML='';
     if(suppliers.length===0){
@@ -282,6 +236,7 @@ window.addEventListener('unhandledrejection', e=>{
     const s = suppliers.find(x=>x.id===activeSupplierId);
     ledgerTitle.textContent='כרטסת: '+(s?.name||'');
 
+    // כאן נשתמש בכל החשבוניות (לא לחודש) – כמו קודם
     const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
     const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
     grandTotalEl.textContent = fmt(total);
@@ -313,113 +268,77 @@ window.addEventListener('unhandledrejection', e=>{
   }
   function renderAllViews(){ renderSuppliers(); renderLedger(); if(!monthlyPane.classList.contains('hidden')) renderMonthly(); }
 
-  // ===== Monthly Summary (ללא שינוי פונקציונלי) =====
-  function monthStartEnd(ym){
-  const [yy, mm] = (ym || '').split('-').map(Number);
-  if (!yy || !mm) { // הגנה אם ym ריק/לא תקין
-    const now = new Date();
-    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 1));
-    const toISO = d => d.toISOString().slice(0,10);
-    return { startISO: toISO(start), endISO: toISO(end) };
+  // ===== START v1.3.2: Monthly Summary =====
+  function monthStartEnd(ym){ // ym = 'YYYY-MM'
+    const [y,m] = ym.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m-1, 1));
+    const end   = new Date(Date.UTC(y, m, 1));
+    // to ISO string yyyy-mm-dd (no time)
+    const toISODate = d => d.toISOString().slice(0,10);
+    return { startISO: toISODate(start), endISO: toISODate(end) };
   }
-  const start = new Date(Date.UTC(yy, mm-1, 1));
-  const end   = new Date(Date.UTC(yy, mm, 1));
-  const toISO = d => d.toISOString().slice(0,10);
-  return { startISO: toISO(start), endISO: toISO(end) };
-}
 
   async function renderMonthly(){
-    if(!monthPicker.value){
-      const now = new Date();
-      monthPicker.value = now.toISOString().slice(0,7);
-    }
-    const { startISO, endISO } = monthStartEnd(monthPicker.value);
-    const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
-
-    const totalsBySupplier = {};
-    monthInvoices.forEach(inv=>{
-      const sid = inv.supplier_id;
-      totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
-    });
-
-    monthlyTableBody.innerHTML = '';
-    suppliers.forEach(s=>{
-      const total = totalsBySupplier[s.id] || 0;
-      const tr = document.createElement('tr');
-      const tdName = document.createElement('td');
-      const tdSum  = document.createElement('td');
-
-      const link = document.createElement('button');
-      link.className = 'btn small';
-      link.textContent = s.name;
-      link.onclick = ()=>{
-        setActiveTab('suppliers');
-        activeSupplierId = s.id;
-        renderAllViews();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      };
-
-      tdName.appendChild(link);
-      tdSum.textContent = fmt(total);
-      tr.appendChild(tdName); tr.appendChild(tdSum);
-      monthlyTableBody.appendChild(tr);
-    });
-
-    const grand = Object.values(totalsBySupplier).reduce((a,b)=> a + (Number(b)||0), 0);
-    const trSum  = document.createElement('tr');
-    const tdLab  = document.createElement('td');
-    const tdVal  = document.createElement('td');
-    tdLab.innerHTML = '<b>סה״כ כל הספקים</b>';
-    tdVal.innerHTML = '<b>' + fmt(grand) + '</b>';
-    trSum.appendChild(tdLab);
-    trSum.appendChild(tdVal);
-    monthlyTableBody.appendChild(trSum);
+  if(!monthPicker.value){
+    const now = new Date();
+    monthPicker.value = now.toISOString().slice(0,7); // YYYY-MM
   }
+  const { startISO, endISO } = monthStartEnd(monthPicker.value);
 
-  // ===== v1.3.3: Modal picker helpers =====
-  function openSupplierPicker(){
-    renderSupplierPicker();
-    modalBackdrop.classList.remove('hidden');
-    supplierModal.classList.remove('hidden');
-  }
-  function closeSupplierPicker(){
-    modalBackdrop.classList.add('hidden');
-    supplierModal.classList.add('hidden');
-  }
-  function renderSupplierPicker(){
-    supplierListModal.innerHTML = '';
-    if (!suppliers || !suppliers.length) {
-      const li = document.createElement('li');
-      li.className = 'muted';
-      li.textContent = 'אין ספקים עדיין. ניתן להוסיף בשדה למעלה.';
-      supplierListModal.appendChild(li);
-      return;
-    }
-    suppliers.forEach(s=>{
-      const li = document.createElement('li');
-      const row = document.createElement('div');
-      row.className = 'supplier-row';
-      const btn = document.createElement('button');
-      btn.className = 'supplier-name';
-      btn.textContent = s.name;
-      btn.onclick = ()=>{
-        activeSupplierId = s.id;
-        closeSupplierPicker();
-        renderAllViews();
-      };
-      row.appendChild(btn);
-      li.appendChild(row);
-      supplierListModal.appendChild(li);
-    });
-  }
+  // שליפת חשבוניות לחודש
+  const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
+
+  // קיבוץ לפי ספק
+  const totalsBySupplier = {};
+  monthInvoices.forEach(inv=>{
+    const sid = inv.supplier_id;
+    totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
+  });
+
+  // טבלה: כל הספקים (גם מי שאין לו באותו חודש → 0)
+  monthlyTableBody.innerHTML = '';
+  suppliers.forEach(s=>{
+    const total = totalsBySupplier[s.id] || 0;
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    const tdSum  = document.createElement('td');
+
+    const link = document.createElement('button');
+    link.className = 'btn small';
+    link.textContent = s.name;
+    link.onclick = ()=>{
+      setActiveTab('suppliers');
+      activeSupplierId = s.id;
+      renderAllViews();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    tdName.appendChild(link);
+    tdSum.textContent = fmt(total);
+    tr.appendChild(tdName); tr.appendChild(tdSum);
+    monthlyTableBody.appendChild(tr);
+  });
+
+  // שורת סיכום כוללת
+  const grand = Object.values(totalsBySupplier)
+    .reduce((a,b)=> a + (Number(b)||0), 0);
+  const trSum  = document.createElement('tr');
+  const tdLab  = document.createElement('td');
+  const tdVal  = document.createElement('td');
+  tdLab.innerHTML = '<b>סה״כ כל הספקים</b>';
+  tdVal.innerHTML = '<b>' + fmt(grand) + '</b>';
+  trSum.appendChild(tdLab);
+  trSum.appendChild(tdVal);
+  monthlyTableBody.appendChild(trSum);
+}
+  // ===== END v1.3.2 =====
 
   // Tabs logic
   function setActiveTab(which){
     [tabSuppliers, tabMonthly].forEach(b=>b && b.classList.remove('active'));
     if(which==='suppliers'){
       tabSuppliers && tabSuppliers.classList.add('active');
-      suppliersPane.classList.add('hidden');   // v1.3.3: מסתיר את הרשימה הישנה
+      suppliersPane.classList.remove('hidden');
       ledgerPane.classList.remove('hidden');
       monthlyPane.classList.add('hidden');
     } else if(which==='monthly'){
@@ -434,34 +353,8 @@ window.addEventListener('unhandledrejection', e=>{
   // === Boot ===
   async function boot(){
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
-
     // auth
-/* ==== Diagnostic Login Handler חדש ==== */
-on(loginBtn, 'click', async (e) => {
-  e.preventDefault();
-  console.log("מנסה להתחבר...");
-
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: emailInput.value,
-      password: passInput.value
-    });
-
-    if (error) {
-      console.error("שגיאת התחברות:", error.message);
-      alert("שגיאה: " + error.message);
-      return;
-    }
-
-    console.log("התחברות הצליחה", data);
-    location.reload(); // רענון הדף אחרי התחברות
-  } catch (err) {
-    console.error("שגיאת התחברות:", err.message);
-    alert("שגיאה: " + err.message);
-  }
-});
-/* ==== סוף Diagnostic Login Handler ==== */
-
+on(loginBtn, 'click', async (e)=>{ e.preventDefault(); e.stopPropagation();
       authMsg.textContent='מתחבר...';
       const email=(emailEl.value||'').trim(); const password=passEl.value||'';
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -469,76 +362,73 @@ on(loginBtn, 'click', async (e) => {
       else {
         const { data: { session } } = await supabase.auth.getSession();
         currentUser=session?.user||null; setAuthUI(!!currentUser, currentUser?.email);
-        setActiveTab('suppliers');
+        setActiveTab('suppliers'); // ברירת מחדל
         await refreshAll();
       }
     });
-    wire(logoutBtn, async ()=>{ await supabase.auth.signOut(); currentUser=null; setAuthUI(false); });
+on(logoutBtn, 'click', async ()=>{
+ await supabase.auth.signOut(); currentUser=null; setAuthUI(false); });
 
-    // suppliers actions (קיים)
+    // suppliers actions
     on(document.getElementById('addSupplierBtn'), 'click', async (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      if (window.__addingSupplier) return;
-      window.__addingSupplier = true;
-      try {
-        const name = (supplierName.value || '').trim();
-        if (!name) return;
-        let newId = await addSupplier(name);
-        supplierName.value = '';
-        await refreshAll();
-        if (!newId && Array.isArray(suppliers)) {
-          const s = suppliers.find(x => x && x.name === name);
-          if (s) newId = s.id;
-        }
-        if (newId) { activeSupplierId = newId; renderAllViews(); }
-      } finally { setTimeout(()=>{ window.__addingSupplier = false; }, 300); }
-    });
+  e.preventDefault();
+  e.stopPropagation();
 
-    // invoices actions (קיים)
+  // אנטי-כפולים: מונע לחיצות כפולות/אירועים כפולים
+  if (window.__addingSupplier) return;
+  window.__addingSupplier = true;
+
+  try {
+  const name = (supplierName.value || '').trim();
+  if (!name) return;
+
+  let newId = await addSupplier(name);
+  supplierName.value = '';
+  await refreshAll();
+
+  if (!newId && Array.isArray(suppliers)) {
+    const s = suppliers.find(x => x && x.name === name);
+    if (s) newId = s.id;
+  }
+  if (newId) {
+    activeSupplierId = newId;
+    renderAllViews();
+  }
+} finally {
+  // משחרר את הנעילה אחרי רגע קצר כדי למנוע כפילויות
+  setTimeout(()=>{ window.__addingSupplier = false; }, 300);
+}
+});
     on(document.getElementById('addInvoiceBtn'), 'click', async (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      if (window.__addingInvoice) return;
-      window.__addingInvoice = true;
-      try {
-        if(!activeSupplierId) return;
-        const date = invDate.value || new Date().toISOString().slice(0,10);
-        const amount = parseFloat(invAmount.value || '0');
-        const notes = invNotes.value || '';
-        await addInvoice(activeSupplierId, date, amount, notes);
-        invAmount.value = ''; invNotes.value = '';
-        await refreshAll();
-      } finally { setTimeout(()=>{ window.__addingInvoice = false; }, 300); }
-    });
+  e.preventDefault();
+  e.stopPropagation();
 
-    // tabs (קיים)
+  // אנטי-כפולים: מונע לחיצה כפולה/אירועים כפולים במובייל
+  if (window.__addingInvoice) return;
+  window.__addingInvoice = true;
+
+  try {
+    if(!activeSupplierId) return;
+    const date = invDate.value || new Date().toISOString().slice(0,10);
+    const amount = parseFloat(invAmount.value || '0');
+    const notes = invNotes.value || '';
+    await addInvoice(activeSupplierId, date, amount, notes);
+    invAmount.value = '';
+    invNotes.value = '';
+    await refreshAll();
+  } finally {
+    // משחררים את הנעילה אחרי רגע קצר
+    setTimeout(()=>{ window.__addingInvoice = false; }, 300);
+  }
+});
+
+    // tabs
     on(tabSuppliers,'click', ()=> setActiveTab('suppliers'));
     on(tabMonthly,'click',  ()=> setActiveTab('monthly'));
     on(refreshMonthlyBtn,'click', renderMonthly);
     on(monthPicker,'change', renderMonthly);
 
-    // v1.3.3: modal bindings
-    on(openSupplierPickerBtn,'click', openSupplierPicker);
-    on(closeSupplierPickerBtn,'click', closeSupplierPicker);
-    on(modalBackdrop,'click', closeSupplierPicker);
-    on(addSupplierBtn2, 'click', async (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      if (window.__addingSupplier2) return;
-      window.__addingSupplier2 = true;
-      try {
-        const name = (supplierName2.value || '').trim();
-        if (!name) return;
-        let newId = await addSupplier(name);
-        supplierName2.value = '';
-        await refreshAll();
-        if (!newId && Array.isArray(suppliers)) {
-          const s = suppliers.find(x => x && x.name === name);
-          if (s) newId = s.id;
-        }
-        if (newId) { activeSupplierId = newId; renderAllViews(); closeSupplierPicker(); }
-      } finally { setTimeout(()=>{ window.__addingSupplier2 = false; }, 300); }
-    });
-
-    // session (קיים)
+    // session
     const { data: { session } } = await supabase.auth.getSession();
     if(session?.user){
       currentUser=session.user; setAuthUI(true, currentUser.email);
