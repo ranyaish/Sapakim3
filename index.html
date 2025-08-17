@@ -396,7 +396,7 @@ window.addEventListener('unhandledrejection', e=>{
       supplierListModal.appendChild(li);
       return;
     }
-    suppliers.forEach(s=>{m
+    suppliers.forEach(s=>{
       const li = document.createElement('li');
       const row = document.createElement('div');
       row.className = 'supplier-row';
@@ -436,7 +436,32 @@ window.addEventListener('unhandledrejection', e=>{
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } });
 
     // auth
-    wire(loginBtn, async ()=>{
+/* ==== Diagnostic Login Handler חדש ==== */
+on(loginBtn, 'click', async (e) => {
+  e.preventDefault();
+  console.log("מנסה להתחבר...");
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: emailInput.value,
+      password: passInput.value
+    });
+
+    if (error) {
+      console.error("שגיאת התחברות:", error.message);
+      alert("שגיאה: " + error.message);
+      return;
+    }
+
+    console.log("התחברות הצליחה", data);
+    location.reload(); // רענון הדף אחרי התחברות
+  } catch (err) {
+    console.error("שגיאת התחברות:", err.message);
+    alert("שגיאה: " + err.message);
+  }
+});
+/* ==== סוף Diagnostic Login Handler ==== */
+
       authMsg.textContent='מתחבר...';
       const email=(emailEl.value||'').trim(); const password=passEl.value||'';
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -501,7 +526,7 @@ window.addEventListener('unhandledrejection', e=>{
       window.__addingSupplier2 = true;
       try {
         const name = (supplierName2.value || '').trim();
-        if (!name) return;m
+        if (!name) return;
         let newId = await addSupplier(name);
         supplierName2.value = '';
         await refreshAll();
