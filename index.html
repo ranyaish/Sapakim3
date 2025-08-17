@@ -346,7 +346,7 @@
       const date=invDate.value||new Date().toISOString().slice(0,10);
       const amount=parseFloat(invAmount.value||'0'); const notes=invNotes.value||'';
       await addInvoice(activeSupplierId, date, amount, notes);
-      invAmount.value=''; invNotes.value=''; await refreshAll();
+      invAmount.value=''; invNotes.value=''; 
     });
 
     // tabs
