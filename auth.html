@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supabase Auth Smoke Test</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<div style="font-family:system-ui;max-width:520px;margin:24px auto;padding:16px;border:1px solid #ddd;border-radius:12px">
+  <h2>Auth Smoke Test</h2>
+  <div>URL: <code id="u"></code></div>
+  <div style="margin:12px 0">
+    <input id="email" placeholder="אימייל" style="width:100%;padding:8px;margin:4px 0">
+    <input id="password" type="password" placeholder="סיסמה" style="width:100%;padding:8px;margin:4px 0">
+    <button id="go" style="padding:8px 12px">כניסה</button>
+  </div>
+  <pre id="out" style="background:#f7f7f7;padding:12px;border-radius:8px;max-height:300px;overflow:auto"></pre>
+</div>
+<script>
+const SUPABASE_URL  = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A';
+document.getElementById('u').textContent = SUPABASE_URL;
+
+const log = (...a)=>{ console.log(...a); out.textContent += a.map(x=>typeof x==='string'?x:JSON.stringify(x,null,2)).join(' ')+'\n'; };
+window.addEventListener('error', e=>log('window.onerror:', e.message||e.error));
+window.addEventListener('unhandledrejection', e=>log('unhandledrejection:', e.reason?.message||e.reason));
+
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth:{ persistSession:false } });
+
+go.onclick = async ()=>{
+  out.textContent = 'Logging in...\n';
+  try {
+    const email = (document.getElementById('email').value||'').trim();
+    const password = document.getElementById('password').value||'';
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) { log('LOGIN ERROR:', error); return; }
+    log('LOGIN OK:', { user: data.user?.email, id: data.user?.id });
+    const sess = await client.auth.getSession();
+    log('SESSION:', sess);
+  } catch (err) {
+    log('FATAL:', err?.message||String(err));
+  }
+};
+</script>
