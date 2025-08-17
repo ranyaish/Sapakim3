@@ -167,13 +167,6 @@ window.addEventListener('unhandledrejection', e=>{
   }
   console.error('unhandledrejection:', e);
 });
-
-// === מפה והלאה הקוד שלך כרגיל ===
-const supabase = window.supabase.createClient(...);
-…
-
-
-  
 (function(){
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
