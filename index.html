@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1.3.5-stable (+כפתור חודש)</title>
+<title>ניהול ספקים — v1.3.6-stable (טוסט + חודש בכרטסת)</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -40,19 +40,25 @@
   .tab-btn { border:none; background:transparent; padding:12px 10px; cursor:pointer; border-bottom:2px solid transparent; font-weight:600 }
   .tab-btn.active { border-color:var(--accent); color:var(--accent) }
 
-  /* Supplier picker modal (נשאר כמו קודם; לא חובה לשימוש בכפתור חודש) */
+  /* Supplier picker modal (קיים) */
   .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40; }
   .modal { position:fixed; left:0; right:0; top:10%; margin:auto; max-width:560px; background:#fff;
            border:1px solid var(--border); border-radius:14px; padding:14px; z-index:50; }
   .modal h3 { margin:0 0 10px }
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
+
+  /* Toast */
+  .toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
+           background:#111827; color:#fff; padding:10px 14px; border-radius:12px;
+           box-shadow:0 10px 30px rgba(0,0,0,.15); z-index:60; }
+  .toast.hidden { display:none; }
 </style>
 
 <header>
   <div class="row">
     <h1>ניהול ספקים</h1>
-    <span class="badge">v1.3.5-stable</span>
+    <span class="badge">v1.3.6-stable</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row">
@@ -89,6 +95,13 @@
         <div>
           <h3 id="ledgerTitle" style="margin:0 0 4px">כרטסת</h3>
           <div class="muted">הוסף/י חשבונית: תאריך, סכום, הערות (לא חובה)</div>
+
+          <!-- NEW: חודש וסה״כ חודשי לספק הפעיל -->
+          <div class="row" style="margin-top:6px">
+            <label class="muted" for="ledgerMonth">חודש לסיכום:</label>
+            <input type="month" id="ledgerMonth" style="width:auto">
+            <span class="badge">סה״כ לחודש: <b id="ledgerMonthTotal">₪0.00</b></span>
+          </div>
         </div>
         <div class="row">
           <button id="openSupplierPickerBtn" class="btn">בחר ספק</button>
@@ -131,7 +144,7 @@
   </section>
 </main>
 
-<!-- Supplier Picker Modal (קיים, לא חובה לכפתור חודש) -->
+<!-- Supplier Picker Modal (קיים) -->
 <div id="modalBackdrop" class="modal-backdrop hidden"></div>
 <div id="supplierModal" class="modal hidden" role="dialog" aria-modal="true">
   <div class="row" style="justify-content:space-between;align-items:center">
@@ -148,6 +161,9 @@
     <ul id="supplierListModal" style="list-style:none; margin:0; padding:0"></ul>
   </div>
 </div>
+
+<!-- NEW: Toast container -->
+<div id="toast" class="toast hidden"></div>
 
 <script>
 (function(){
@@ -187,6 +203,19 @@
   const supplierListModal = $('#supplierListModal');
   const supplierName2 = $('#supplierName2');
   const addSupplierBtn2 = $('#addSupplierBtn2');
+
+  // NEW: ledger month UI + toast
+  const ledgerMonth = $('#ledgerMonth');
+  const ledgerMonthTotal = $('#ledgerMonthTotal');
+  const toastEl = $('#toast');
+  let toastTimer=null;
+  function showToast(msg){
+    if(!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> toastEl.classList.add('hidden'), 3000);
+  }
 
   function setAuthUI(on, email){
     if(on){
@@ -255,7 +284,7 @@
     if(error) console.error(error);
   }
 
-  // ===== Helpers (NEW: עבור כפתור "חודש") =====
+  // ===== Helpers (קיים + עבור חודש) =====
   function mmMonthStartEnd(ym){ // ym = 'YYYY-MM'
     const [y,m] = (ym||'').split('-').map(Number);
     const now = new Date();
@@ -289,7 +318,7 @@
       del.onclick=async()=>{ if(confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')){ await deleteSupplier(s.id); await refreshAll(); } };
       row.appendChild(btn); row.appendChild(del);
 
-      // NEW: כפתור "חודש" לכל ספק
+      /* NEW: כפתור "חודש" לכל ספק -> טוסט */
       const monthBtn = document.createElement('button');
       monthBtn.className = 'btn small';
       monthBtn.textContent = 'חודש';
@@ -298,12 +327,22 @@
         const ym = prompt('בדיקת סיכום לחודש (YYYY-MM):', def);
         if(!ym) return;
         const sum = mmTotalForSupplierMonth(s.id, ym);
-        alert(`סה״כ לחודש ${ym} אצל "${s.name}": ${fmt(sum)}`);
+        showToast(`סה״כ לחודש ${ym} אצל "${s.name}": ${fmt(sum)}`);
       };
       row.appendChild(monthBtn);
 
       li.appendChild(row); supplierList.appendChild(li);
     });
+  }
+
+  function updateLedgerMonthlyTotal(){
+    if(!activeSupplierId) { if(ledgerMonthTotal) ledgerMonthTotal.textContent = fmt(0); return; }
+    if(ledgerMonth && !ledgerMonth.value){
+      ledgerMonth.value = new Date().toISOString().slice(0,7);
+    }
+    const ym = (ledgerMonth && ledgerMonth.value) ? ledgerMonth.value : new Date().toISOString().slice(0,7);
+    const sum = mmTotalForSupplierMonth(activeSupplierId, ym);
+    if(ledgerMonthTotal) ledgerMonthTotal.textContent = fmt(sum);
   }
 
   function renderLedger(){
@@ -316,6 +355,9 @@
     const arr = (window.__allInvoices||[]).filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
     const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
     grandTotalEl.textContent = fmt(total);
+
+    // NEW: עדכון סה״כ חודשי לכותרת הכרטסת
+    updateLedgerMonthlyTotal();
 
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
@@ -398,12 +440,11 @@
     const tdVal  = document.createElement('td');
     tdLab.innerHTML = '<b>סה״כ כל הספקים</b>';
     tdVal.innerHTML = '<b>' + fmt(grand) + '</b>';
-    trSum.appendChild(tdLab);
-    trSum.appendChild(tdVal);
     monthlyTableBody.appendChild(trSum);
+    trSum.appendChild(tdLab); trSum.appendChild(tdVal);
   }
 
-  // ===== Modal picker helpers (קיים; לא חובה לכפתור חודש) =====
+  // ===== Modal picker helpers (קיים) =====
   function openSupplierPicker(){
     renderSupplierPicker();
     modalBackdrop.classList.remove('hidden');
@@ -544,6 +585,9 @@
         if (newId) { activeSupplierId = newId; renderAllViews(); closeSupplierPicker(); }
       } finally { setTimeout(()=>{ window.__addingSupplier2 = false; }, 300); }
     });
+
+    // ledger month change
+    on(ledgerMonth, 'change', updateLedgerMonthlyTotal);
 
     // session
     const { data: { session } } = await supabase.auth.getSession();
