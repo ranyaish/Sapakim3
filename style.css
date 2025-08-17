@@ -1,7 +1,0 @@
-body { font-family: Arial, sans-serif; direction: rtl; margin: 20px; }
-section { margin-bottom: 20px; }
-#supplierList { list-style: none; padding: 0; }
-#supplierList li { cursor: pointer; padding: 5px; border-bottom: 1px solid #ccc; }
-#supplierList li:hover { background: #f0f0f0; }
-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
