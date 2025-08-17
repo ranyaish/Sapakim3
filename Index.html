@@ -150,6 +150,30 @@
 </div>
 
 <script>
+// --- לוכדי שגיאות, שמים ממש בשורות הראשונות של הסקריפט ---
+window.addEventListener('error', e=>{
+  const el = document.getElementById('authMsg');
+  if (el) {
+    el.textContent = 'שגיאת סקריפט: ' + (e.message || e.error);
+    el.className = 'err';
+  }
+  console.error('window.onerror:', e);
+});
+window.addEventListener('unhandledrejection', e=>{
+  const el = document.getElementById('authMsg');
+  if (el) {
+    el.textContent = 'שגיאה: ' + (e.reason?.message || e.reason);
+    el.className = 'err';
+  }
+  console.error('unhandledrejection:', e);
+});
+
+// === מפה והלאה הקוד שלך כרגיל ===
+const supabase = window.supabase.createClient(...);
+…
+
+
+  
 (function(){
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
