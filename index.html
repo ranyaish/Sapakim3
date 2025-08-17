@@ -5,6 +5,21 @@
 <title>ניהול ספקים — v1.2-staging (פופ־אפ בחירת ספק)</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+<script>
+// לוכדי שגיאות כלליים כדי לראות הודעה במקום "מתחבר..." תקוע
+window.addEventListener('error', e=>{
+  const el = document.getElementById('authMsg');
+  if (el) { el.textContent = 'שגיאת סקריפט: ' + (e.message || e.error); el.className = 'err'; }
+  console.error('window.onerror:', e);
+});
+window.addEventListener('unhandledrejection', e=>{
+  const el = document.getElementById('authMsg');
+  if (el) { el.textContent = 'שגיאה: ' + (e.reason?.message || e.reason); el.className = 'err'; }
+  console.error('unhandledrejection:', e);
+});
+</script>
+  
 <style>
   :root { --bg:#f6f8fb; --card:#fff; --border:#e5e7eb; --ink:#0f172a; --muted:#64748b; --accent:#111827; }
   * { box-sizing:border-box }
@@ -374,7 +389,7 @@
       supplierListModal.appendChild(li);
       return;
     }
-    suppliers.forEach(s=>{
+    suppliers.forEach(s=>{m
       const li = document.createElement('li');
       const row = document.createElement('div');
       row.className = 'supplier-row';
@@ -479,7 +494,7 @@
       window.__addingSupplier2 = true;
       try {
         const name = (supplierName2.value || '').trim();
-        if (!name) return;
+        if (!name) return;m
         let newId = await addSupplier(name);
         supplierName2.value = '';
         await refreshAll();
