@@ -2,11 +2,11 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1.3.6-stable (סינון חודשי בכרטסת)</title>
+<title>ניהול ספקים — v1.3.5-merged (חיפוש ספקים בפופ־אפ + שמירת יציבות)</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- לוכדי שגיאות גלובליים (אופציונלי אך שימושי) -->
+<!-- לוכדי שגיאות גלובליים (לא נוגעים בלוגין, רק מציגים שגיאה במקום "מתחבר..." תקוע) -->
 <script>
 window.addEventListener('error', e=>{
   const el = document.getElementById('authMsg');
@@ -66,7 +66,7 @@ window.addEventListener('unhandledrejection', e=>{
 <header>
   <div class="row">
     <h1>ניהול ספקים</h1>
-    <span class="badge">v1.3.6-stable</span>
+    <span class="badge">v1.3.5-merged</span>
     <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
   </div>
   <div class="row">
@@ -86,7 +86,7 @@ window.addEventListener('unhandledrejection', e=>{
 </div>
 
 <main id="app" class="hidden">
-  <!-- טאב ספקים -->
+  <!-- טאב ספקים: משאירים את הקופסה אך מסתירים אותה כברירת מחדל (עובדים עם פופ־אפ) -->
   <aside class="card" id="suppliersPane">
     <h3 style="margin:0 0 10px">ספקים</h3>
     <div class="row">
@@ -117,13 +117,6 @@ window.addEventListener('unhandledrejection', e=>{
         <button id="addInvoiceBtn" class="btn primary">הוסף חשבונית</button>
       </div>
 
-      <!-- סינון לפי חודש (חדש) -->
-      <div class="row" style="margin-top:10px; align-items:center">
-        <label for="invMonthFilter" class="muted">סנן לפי חודש:</label>
-        <input type="month" id="invMonthFilter" style="width:auto">
-        <button id="clearInvMonthFilterBtn" class="btn small">נקה</button>
-      </div>
-
       <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
         <table>
           <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
@@ -133,7 +126,7 @@ window.addEventListener('unhandledrejection', e=>{
     </div>
   </section>
 
-  <!-- טאב סיכום חודשי -->
+  <!-- טאב סיכום חודשי (ללא שינוי פונקציונלי) -->
   <section class="card hidden" id="monthlyPane" style="grid-column:1 / -1">
     <div class="row" style="justify-content:space-between;align-items:center">
       <h3 style="margin:0">סיכום חודשי לכל הספקים</h3>
@@ -152,7 +145,7 @@ window.addEventListener('unhandledrejection', e=>{
   </section>
 </main>
 
-<!-- פופ־אפ בחירת ספק -->
+<!-- פופ־אפ בחירת ספק + חיפוש -->
 <div id="modalBackdrop" class="modal-backdrop hidden"></div>
 <div id="supplierModal" class="modal hidden" role="dialog" aria-modal="true">
   <div class="row" style="justify-content:space-between;align-items:center">
@@ -163,6 +156,11 @@ window.addEventListener('unhandledrejection', e=>{
   <div class="row" style="margin:10px 0">
     <input id="supplierName2" class="grow" placeholder="שם ספק חדש">
     <button id="addSupplierBtn2" class="btn primary">הוסף</button>
+  </div>
+
+  <!-- חדש: שורת חיפוש ספקים -->
+  <div class="row" style="margin:10px 0">
+    <input id="supplierFilter" class="grow" placeholder="חיפוש ספק...">
   </div>
 
   <div class="list">
@@ -209,10 +207,7 @@ window.addEventListener('unhandledrejection', e=>{
   const supplierListModal = $('#supplierListModal');
   const supplierName2 = $('#supplierName2');
   const addSupplierBtn2 = $('#addSupplierBtn2');
-
-  // מסנן חודש בכרטסת (חדש)
-  const invMonthFilter = $('#invMonthFilter');
-  const clearInvMonthFilterBtn = $('#clearInvMonthFilterBtn');
+  const supplierFilter = $('#supplierFilter'); // חדש
 
   function setAuthUI(on, email){
     if(on){
@@ -272,21 +267,6 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error);
   }
 
-  // ===== עזרות לטווח חודש (כבר בשימוש בטאב "סיכום חודשי") =====
-  function monthStartEnd(ym){
-    const [yy, mm] = (ym || '').split('-').map(Number);
-    const toISO = d => d.toISOString().slice(0,10);
-    if (!yy || !mm) {
-      const now = new Date();
-      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 1));
-      return { startISO: toISO(start), endISO: toISO(end) };
-    }
-    const start = new Date(Date.UTC(yy, mm-1, 1));
-    const end   = new Date(Date.UTC(yy, mm, 1));
-    return { startISO: toISO(start), endISO: toISO(end) };
-  }
-
   // ===== RENDER =====
   function renderSuppliers(){
     supplierList.innerHTML='';
@@ -311,25 +291,10 @@ window.addEventListener('unhandledrejection', e=>{
     const s = suppliers.find(x=>x.id===activeSupplierId);
     ledgerTitle.textContent='כרטסת: '+(s?.name||'');
 
-    // בסיס: כל חשבוניות הספק
-    let arr = window.__allInvoices
-      .filter(i=>i.supplier_id===activeSupplierId)
-      .slice();
-
-    // סינון לפי חודש (אם נבחר)
-    if (invMonthFilter && invMonthFilter.value) {
-      const { startISO, endISO } = monthStartEnd(invMonthFilter.value);
-      arr = arr.filter(i => i.date >= startISO && i.date < endISO);
-    }
-
-    // מיון יורד לפי תאריך
-    arr.sort((a,b)=> new Date(b.date)-new Date(a.date));
-
-    // סה"כ
+    const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
     const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
     grandTotalEl.textContent = fmt(total);
 
-    // טבלה
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
       const tr=document.createElement('tr'); const td=document.createElement('td');
@@ -349,20 +314,20 @@ window.addEventListener('unhandledrejection', e=>{
     }
   }
 
-  async function refreshAll(){
-    suppliers = await loadSuppliers();
-    window.__allInvoices = await loadInvoicesAll();
-    if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
-    renderAllViews();
+  function monthStartEnd(ym){
+    const [yy, mm] = (ym || '').split('-').map(Number);
+    const toISO = d => d.toISOString().slice(0,10);
+    if (!yy || !mm) {
+      const now = new Date();
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 1));
+      return { startISO: toISO(start), endISO: toISO(end) };
+    }
+    const start = new Date(Date.UTC(yy, mm-1, 1));
+    const end   = new Date(Date.UTC(yy, mm, 1));
+    return { startISO: toISO(start), endISO: toISO(end) };
   }
 
-  function renderAllViews(){
-    renderSuppliers();
-    renderLedger();
-    if(!monthlyPane.classList.contains('hidden')) renderMonthly();
-  }
-
-  // ===== Monthly Summary =====
   async function renderMonthly(){
     if(!monthPicker.value){
       const now = new Date();
@@ -406,12 +371,25 @@ window.addEventListener('unhandledrejection', e=>{
     monthlyTableBody.appendChild(trSum);
   }
 
-  // Tabs
+  function renderAllViews(){
+    renderSuppliers();
+    renderLedger();
+    if(!monthlyPane.classList.contains('hidden')) renderMonthly();
+  }
+
+  async function refreshAll(){
+    suppliers = await loadSuppliers();
+    window.__allInvoices = await loadInvoicesAll();
+    if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
+    renderAllViews();
+  }
+
+  // Tabs — התאמה: בטאב "ספקים" מסתירים את הרשימה הצדדית (עובדים דרך הפופ־אפ בלבד)
   function setActiveTab(which){
     [tabSuppliers, tabMonthly].forEach(b=>b && b.classList.remove('active'));
     if(which==='suppliers'){
       tabSuppliers && tabSuppliers.classList.add('active');
-      suppliersPane.classList.remove('hidden');
+      suppliersPane.classList.add('hidden');     // <<< זה החידוש (החזרת ההתנהגות המבוקשת)
       ledgerPane.classList.remove('hidden');
       monthlyPane.classList.add('hidden');
     } else if(which==='monthly'){
@@ -429,17 +407,15 @@ window.addEventListener('unhandledrejection', e=>{
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
 
-    // LOGIN (ללא trim לסיסמה)
+    // LOGIN (הפלואו היציב — ללא trim לסיסמה)
     on(loginBtn, 'click', async (e)=>{
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       if (window.__loggingIn) return;
       window.__loggingIn = true;
-
       authMsg.textContent='מתחבר...'; authMsg.className='muted';
       try {
         const email=(emailEl.value||'').trim();
-        const password=(passEl.value||'');
+        const password=(passEl.value||''); // בלי trim
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if(error){
           console.error('LOGIN ERROR:', error);
@@ -465,7 +441,7 @@ window.addEventListener('unhandledrejection', e=>{
       await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
     });
 
-    // הוספת ספק (אנטי-כפולים)
+    // Add supplier (אנטי-כפולים)
     on($('#addSupplierBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingSupplier) return;
@@ -484,7 +460,7 @@ window.addEventListener('unhandledrejection', e=>{
       } finally { setTimeout(()=>{ window.__addingSupplier = false; }, 300); }
     });
 
-    // הוספת חשבונית (אנטי-כפולים)
+    // Add invoice (אנטי-כפולים)
     on($('#addInvoiceBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingInvoice) return;
@@ -506,10 +482,11 @@ window.addEventListener('unhandledrejection', e=>{
     on(refreshMonthlyBtn,'click', renderMonthly);
     on(monthPicker,'change', renderMonthly);
 
-    // Modal: בחירת ספק
+    // Modal: בחירת ספק + חיפוש
     on(openSupplierPickerBtn,'click', openSupplierPicker);
     on(closeSupplierPickerBtn,'click', closeSupplierPicker);
     on(modalBackdrop,'click', closeSupplierPicker);
+    on(supplierFilter, 'input', renderSupplierPicker); // חי – מסנן תוך כדי הקלדה
     on(addSupplierBtn2, 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingSupplier2) return;
@@ -528,14 +505,6 @@ window.addEventListener('unhandledrejection', e=>{
       } finally { setTimeout(()=>{ window.__addingSupplier2 = false; }, 300); }
     });
 
-    // מאזינים למסנן חודש בכרטסת
-    on(invMonthFilter, 'change', ()=> renderLedger());
-    on(clearInvMonthFilterBtn, 'click', (e)=>{
-      e.preventDefault();
-      if (invMonthFilter) invMonthFilter.value = '';
-      renderLedger();
-    });
-
     // Session restore
     const { data: { session } } = await supabase.auth.getSession();
     if(session?.user){
@@ -550,11 +519,13 @@ window.addEventListener('unhandledrejection', e=>{
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  // Modal helpers
+  // Modal helpers (כולל סינון)
   function openSupplierPicker(){
     renderSupplierPicker();
     modalBackdrop.classList.remove('hidden');
     supplierModal.classList.remove('hidden');
+    // איפוס חיפוש בכל פתיחה
+    if (supplierFilter) supplierFilter.value = '';
   }
   function closeSupplierPicker(){
     modalBackdrop.classList.add('hidden');
@@ -562,14 +533,28 @@ window.addEventListener('unhandledrejection', e=>{
   }
   function renderSupplierPicker(){
     supplierListModal.innerHTML = '';
-    if (!Array.isArray(suppliers) || !suppliers.length) {
+    const all = Array.isArray(suppliers) ? suppliers.slice() : [];
+    if (!all.length) {
       const li = document.createElement('li');
       li.className = 'muted';
       li.textContent = 'אין ספקים עדיין. ניתן להוסיף בשדה למעלה.';
       supplierListModal.appendChild(li);
       return;
     }
-    const list = suppliers.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
+
+    const q = (supplierFilter?.value || '').trim().toLowerCase();
+    const list = all
+      .sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'))
+      .filter(s => !q || (s.name||'').toLowerCase().includes(q));
+
+    if (!list.length) {
+      const li = document.createElement('li');
+      li.className = 'muted';
+      li.textContent = 'אין תוצאות לחיפוש.';
+      supplierListModal.appendChild(li);
+      return;
+    }
+
     list.forEach(s=>{
       const li = document.createElement('li');
       const row = document.createElement('div');
@@ -582,7 +567,7 @@ window.addEventListener('unhandledrejection', e=>{
         closeSupplierPicker();
         renderAllViews();
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      };
+      };'''
       row.appendChild(btn);
       li.appendChild(row);
       supplierListModal.appendChild(li);
@@ -591,4 +576,3 @@ window.addEventListener('unhandledrejection', e=>{
 })();
 </script>
 </html>
-```0
