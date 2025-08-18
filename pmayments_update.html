@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>מעקב ספקים ותשלומים</title>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; direction: rtl; margin: 20px; }
+    nav button { margin: 5px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    th { background: #eee; }
+    .err { color: red; }
+    #auth { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+
+<div id="auth">
+  <input id="emailEl" placeholder="אימייל">
+  <input id="passEl" type="password" placeholder="סיסמה">
+  <button id="loginBtn">התחבר</button>
+  <button id="logoutBtn" style="display:none">התנתק</button>
+  <span id="authMsg"></span>
+</div>
+
+<nav id="tabs" style="display:none">
+  <button onclick="setActiveTab('suppliers')">ספקים</button>
+  <button onclick="setActiveTab('payments')">תשלומים חודשיים</button>
+</nav>
+
+<div id="suppliersTab" style="display:none">
+  <h2>סיכום חודשי לפי ספק</h2>
+  <label>חודש:
+    <input type="month" id="monthPicker">
+  </label>
+  <table>
+    <thead>
+      <tr>
+        <th>ספק</th>
+        <th>מס׳ חשבוניות</th>
+        <th>סה״כ לחודש</th>
+      </tr>
+    </thead>
+    <tbody id="suppliersBody"></tbody>
+    <tfoot>
+      <tr><th colspan="2">סה״כ</th><th id="suppliersTotal"></th></tr>
+    </tfoot>
+  </table>
+</div>
+
+<div id="paymentsTab" style="display:none">
+  <h2>תשלומים חודשיים</h2>
+  <label>חודש:
+    <input type="month" id="paymentMonthPicker">
+  </label>
+  <table>
+    <thead>
+      <tr>
+        <th>ספק</th>
+        <th>מס׳ חשבוניות</th>
+        <th>סה״כ לחודש</th>
+        <th>שולם</th>
+      </tr>
+    </thead>
+    <tbody id="paymentsBody"></tbody>
+    <tfoot>
+      <tr><th colspan="2">סה״כ</th><th id="paymentsTotal"></th><th></th></tr>
+    </tfoot>
+  </table>
+</div>
+
+<script>
+const supabaseUrl = "https://uzaqpwbejceyuhnmfdmq.supabase.co"; // שים כאן את ה־URL שלך
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A"; // שים כאן את ה־anon key שלך
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+let currentUser = null;
+let suppliers = [];
+
+const emailEl = document.getElementById("emailEl");
+const passEl = document.getElementById("passEl");
+const loginBtn = document.getElementById("loginBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const authMsg = document.getElementById("authMsg");
+
+const tabs = document.getElementById("tabs");
+const suppliersTab = document.getElementById("suppliersTab");
+const paymentsTab = document.getElementById("paymentsTab");
+
+const monthPicker = document.getElementById("monthPicker");
+const suppliersBody = document.getElementById("suppliersBody");
+const suppliersTotal = document.getElementById("suppliersTotal");
+
+const paymentMonthPicker = document.getElementById("paymentMonthPicker");
+const paymentsBody = document.getElementById("paymentsBody");
+const paymentsTotal = document.getElementById("paymentsTotal");
+
+// === AUTH ===
+loginBtn.onclick = async ()=>{
+  authMsg.textContent='מתחבר...';
+  const email=(emailEl.value||'').trim();
+  const password=passEl.value||'';
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if(error){ authMsg.textContent='שגיאה: '+error.message; authMsg.className='err'; }
+  else {
+    const { data: { session } } = await supabase.auth.getSession();
+    currentUser=session?.user||null;
+    setAuthUI(!!currentUser, currentUser?.email);
+    await refreshAll();
+  }
+};
+
+logoutBtn.onclick = async ()=>{
+  await supabase.auth.signOut();
+  currentUser=null;
+  setAuthUI(false);
+};
+
+function setAuthUI(logged,email){
+  if(logged){
+    loginBtn.style.display="none";
+    logoutBtn.style.display="inline-block";
+    authMsg.textContent="מחובר כ-"+email;
+    tabs.style.display="block";
+    setActiveTab("suppliers");
+  } else {
+    loginBtn.style.display="inline-block";
+    logoutBtn.style.display="none";
+    authMsg.textContent="";
+    tabs.style.display="none";
+    suppliersTab.style.display="none";
+    paymentsTab.style.display="none";
+  }
+}
+
+function setActiveTab(tab){
+  suppliersTab.style.display = tab==="suppliers"?"block":"none";
+  paymentsTab.style.display = tab==="payments"?"block":"none";
+  if(tab==="suppliers") refreshSuppliers();
+  if(tab==="payments") refreshPayments();
+}
+
+function fmt(n){ return n.toLocaleString('he-IL',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+// === LOAD SUPPLIERS ===
+async function loadSuppliers(){
+  const { data, error } = await supabase.from('suppliers').select('*').order('name');
+  if(error){ alert("שגיאה בטעינת ספקים: "+error.message); return []; }
+  return data||[];
+}
+
+// === LOAD INVOICES ===
+async function loadInvoicesForMonth(isoStart, isoEnd){
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('id,supplier_id,date,amount,paid')
+    .gte('date', isoStart).lt('date', isoEnd);
+  if(error){ alert("שגיאת טעינת חשבוניות: "+error.message); return []; }
+  return data||[];
+}
+
+async function updatePaid(id, status){
+  const { error } = await supabase
+    .from('invoices')
+    .update({ paid: status })
+    .eq('id', id);
+  if(error) alert("שגיאת עדכון: "+error.message);
+}
+
+// === SUPPLIERS SUMMARY ===
+async function refreshSuppliers(){
+  if(!monthPicker.value) return;
+  const start = monthPicker.value+"-01";
+  const d = new Date(start);
+  d.setMonth(d.getMonth()+1);
+  const end = d.toISOString().slice(0,10);
+  const invoices = await loadInvoicesForMonth(start,end);
+
+  const bySupplier = new Map();
+  invoices.forEach(inv=>{
+    const prev = bySupplier.get(inv.supplier_id)||{count:0,sum:0};
+    bySupplier.set(inv.supplier_id,{count:prev.count+1,sum:prev.sum+(Number(inv.amount)||0)});
+  });
+
+  suppliersBody.innerHTML="";
+  let grand=0;
+  suppliers.forEach(s=>{
+    const agg = bySupplier.get(s.id)||{count:0,sum:0};
+    grand+=agg.sum;
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${s.name}</td><td>${agg.count}</td><td>${fmt(agg.sum)}</td>`;
+    suppliersBody.appendChild(tr);
+  });
+  suppliersTotal.textContent=fmt(grand);
+}
+
+// === PAYMENTS ===
+async function refreshPayments(){
+  if(!paymentMonthPicker.value) return;
+  const start = paymentMonthPicker.value+"-01";
+  const d = new Date(start);
+  d.setMonth(d.getMonth()+1);
+  const end = d.toISOString().slice(0,10);
+  const invoices = await loadInvoicesForMonth(start,end);
+
+  const bySupplier = new Map();
+  invoices.forEach(inv=>{
+    const prev = bySupplier.get(inv.supplier_id)||{count:0,sum:0,ids:[],paid:false};
+    bySupplier.set(inv.supplier_id,{
+      count: prev.count+1,
+      sum: prev.sum+(Number(inv.amount)||0),
+      ids: [...prev.ids,inv.id],
+      paid: prev.paid || !!inv.paid
+    });
+  });
+
+  paymentsBody.innerHTML="";
+  let grand=0;
+  suppliers.forEach(s=>{
+    const agg = bySupplier.get(s.id)||{count:0,sum:0,ids:[],paid:false};
+    grand+=agg.sum;
+    const tr=document.createElement("tr");
+    const tdName=document.createElement("td"); tdName.textContent=s.name;
+    const tdCnt=document.createElement("td"); tdCnt.textContent=agg.count;
+    const tdSum=document.createElement("td"); tdSum.textContent=fmt(agg.sum);
+    const tdPaid=document.createElement("td");
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=agg.paid;
+    cb.onchange=()=>{ agg.ids.forEach(id=>updatePaid(id,cb.checked)); };
+    tdPaid.appendChild(cb);
+    tr.appendChild(tdName); tr.appendChild(tdCnt); tr.appendChild(tdSum); tr.appendChild(tdPaid);
+    paymentsBody.appendChild(tr);
+  });
+  paymentsTotal.textContent=fmt(grand);
+}
+
+// === INIT ===
+(async ()=>{
+  const { data: { session } } = await supabase.auth.getSession();
+  currentUser=session?.user||null;
+  setAuthUI(!!currentUser, currentUser?.email);
+  suppliers=await loadSuppliers();
+})();
+</script>
+
+</body>
+</html>m
