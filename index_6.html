@@ -65,6 +65,51 @@ window.addEventListener('unhandledrejection', e=>{
   .modal h3 { margin:0 0 10px }
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
+
+
+  /* ===== רספונסיביות מובייל לטבלת הכרטסת ===== */
+@media (max-width: 640px) {
+  /* ריווח קומפקטי */
+  .btn { padding: 6px 10px; font-size: 14px; }
+  .btn.small { padding: 4px 8px; font-size: 13px; }
+  th, td { padding: 8px 8px; }
+
+  /* גלילה חלקה באיזור הטבלה במובייל */
+  #ledgerPane > div[style*="overflow:auto"] {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* קיבוע פריסה, צמצום שבירות */
+  table { table-layout: fixed; }
+  td, th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* מסתיר "הערות" במובייל כדי למנוע גלילה רוחבית */
+  #ledgerPane thead th:nth-child(3),
+  #ledgerPane tbody td:nth-child(3) {
+    display: none;
+  }
+
+  /* מקצה רוחבים יחסיים לעמודות הנותרות: תאריך | סכום | שולם | מחק */
+  #ledgerPane thead th:nth-child(1),
+  #ledgerPane tbody td:nth-child(1) { width: 36%; }
+  #ledgerPane thead th:nth-child(2),
+  #ledgerPane tbody td:nth-child(2) { width: 28%; }
+  #ledgerPane thead th:nth-child(4),
+  #ledgerPane tbody td:nth-child(4) { width: 20%; }
+  #ledgerPane thead th:nth-child(5),
+  #ledgerPane tbody td:nth-child(5) { width: 16%; }
+
+  /* תגית ה"שולם" קומפקטית */
+  .pill { gap: 4px; padding: 3px 6px; }
+}
+
+/* שיפור שבירת טקסט בהערות בדסקטופ (כשכן מוצג) */
+@media (min-width: 641px) {
+  #ledgerPane tbody td:nth-child(3) {
+    white-space: normal; word-break: break-word;
+  }
+}
+  
 </style>
 
 <header>
