@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1.3.4-stable (+שולם +מחיקה מאובטחת)</title>
+<title>ניהול ספקים — v1.3.4-stable (+שולם +מחיקה מאושרת +סה״כ ללא שולם)</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -262,30 +262,30 @@ window.addEventListener('unhandledrejection', e=>{
   }
   async function deleteInvoice(id){
     const { error } = await supabase.from('invoices').delete().eq('id',id);
-    return { error }; // נחזיר למעלה כדי לדעת אם נכשלה
+    return { error };
   }
   async function addInvoice(supplier_id,date,amount,notes){
     const { error } = await supabase.from('invoices').insert({supplier_id,date,amount,notes});
     if(error) console.error(error);
   }
-  // NEW: עדכון סטטוס תשלום
+  // עדכון סטטוס תשלום
   async function updateInvoicePaid(id, paid){
     const { error } = await supabase.from('invoices').update({ paid }).eq('id', id);
     return { error };
   }
 
-  /* === מחיקת חשבונית עם אישור כפול === */
+  /* === מחיקת חשבונית עם אישור כפול (מילת אישור: "מאשר") === */
   async function hardDeleteInvoice(inv, supplierName) {
     try {
       const prettyDate = new Date(inv.date).toLocaleDateString('he-IL');
       const prettyAmt  = (Number(inv.amount)||0).toLocaleString('he-IL', { style:'currency', currency:'ILS' });
       const first = confirm(
-        `את/ה בטוח/ה?\n\nספק: ${supplierName || '(לא ידוע)'}\nתאריך: ${prettyDate}\nסכום: ${prettyAmt}\nהערות: ${inv.notes || ''}\n\nלחיצה על אישור תמחק לצמיתות.`
+        `את/ה בטוח/ה?\n\nספק: ${supplierName || '(לא ידוע)'}\nתאריך: ${prettyDate}\nסכום: ${prettyAmt}\nהערות: ${inv.notes || ''}\n\nלחיצה על אישור תבצע מחיקה לצמיתות.`
       );
       if (!first) return;
 
-      const second = prompt('לאישור מחיקה סופית הקלד/י: DELETE');
-      if (second !== 'DELETE') return;
+      const second = prompt('למחיקה סופית הקלד/י: מאשר');
+      if (second !== 'מאשר') return;
 
       const { error } = await deleteInvoice(inv.id);
       if (error) {
@@ -314,7 +314,6 @@ window.addEventListener('unhandledrejection', e=>{
       const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
       btn.onclick=()=>{activeSupplierId=s.id; renderAllViews();};
       del.onclick=async()=>{ if(confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')){ 
-        // מחיקת ספק—קיימת מלפני (רק אם באמת צריך):
         const { error } = await supabase.from('suppliers').delete().eq('id', s.id);
         if(error){ alert('מחיקת ספק נכשלה: '+(error.message||error)); }
         await refreshAll(); 
@@ -334,8 +333,9 @@ window.addEventListener('unhandledrejection', e=>{
       .slice()
       .sort((a,b)=> new Date(b.date)-new Date(a.date));
 
-    const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
-    grandTotalEl.textContent = fmt(total);
+    // === סכום פתוח לתשלום בלבד (לא כולל חשבוניות מסומנות "שולם") ===
+    const totalUnpaid = arr.reduce((t,i)=> t + (!i.paid ? (Number(i.amount)||0) : 0), 0);
+    grandTotalEl.textContent = fmt(totalUnpaid);
 
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
@@ -355,7 +355,7 @@ window.addEventListener('unhandledrejection', e=>{
         const td3=document.createElement('td');
         td3.textContent=i.notes||'';
 
-        // NEW: "שולם" — צ'קבוקס עם עדכון ל־DB
+        // "שולם" — צ'קבוקס עם עדכון ל־DB והתרעננות סכומים
         const tdPaid=document.createElement('td');
         const label=document.createElement('label');
         label.className='pill ' + (i.paid ? 'paid-true' : 'paid-false');
@@ -373,6 +373,10 @@ window.addEventListener('unhandledrejection', e=>{
             cb.checked = prev;
             label.className='pill ' + (prev ? 'paid-true' : 'paid-false');
             alert('עדכון "שולם" נכשל: ' + (error.message || error));
+          } else {
+            // לעדכן סכומי סה״כ מיידית
+            renderLedger();
+            if(!monthlyPane.classList.contains('hidden')) renderMonthly();
           }
         };
         const spanTxt=document.createElement('span');
@@ -381,14 +385,12 @@ window.addEventListener('unhandledrejection', e=>{
         label.appendChild(spanTxt);
         tdPaid.appendChild(label);
 
-        // מחיקה — עם אישור כפול
+        // מחיקה — עם אישור כפול ("מאשר")
         const tdActions=document.createElement('td');
         const del=document.createElement('button');
         del.className='btn small';
         del.textContent='מחק';
-        del.onclick=async()=>{
-          await hardDeleteInvoice(i, s?.name);
-        };
+        del.onclick=async()=>{ await hardDeleteInvoice(i, s?.name); };
         tdActions.appendChild(del);
 
         [td1,td2,td3,tdPaid,tdActions].forEach(x=>tr.appendChild(x));
@@ -419,10 +421,14 @@ window.addEventListener('unhandledrejection', e=>{
     const { startISO, endISO } = monthStartEnd(monthPicker.value);
 
     const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
+
+    // === סיכום לפי ספק לחודש — סופרים רק חשבוניות שלא שולם ===
     const totalsBySupplier = {};
     monthInvoices.forEach(inv=>{
-      const sid = inv.supplier_id;
-      totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
+      if (!inv.paid) {
+        const sid = inv.supplier_id;
+        totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
+      }
     });
 
     monthlyTableBody.innerHTML = '';
@@ -450,7 +456,7 @@ window.addEventListener('unhandledrejection', e=>{
 
     const grand = Object.values(totalsBySupplier).reduce((a,b)=> a + (Number(b)||0), 0);
     const trSum  = document.createElement('tr');
-    trSum.innerHTML = '<td><b>סה״כ כל הספקים</b></td><td><b>'+fmt(grand)+'</b></td>';
+    trSum.innerHTML = '<td><b>סה״כ כל הספקים (לא שולם)</b></td><td><b>'+fmt(grand)+'</b></td>';
     monthlyTableBody.appendChild(trSum);
   }
 
