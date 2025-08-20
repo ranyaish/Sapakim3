@@ -102,6 +102,37 @@ window.addEventListener('unhandledrejection', e=>{
   #ledgerPane tbody td:nth-child(3) { white-space: normal; word-break: break-word; }
 }
 
+
+  /* === תיקון מובייל לטבלת כרטסת – בלי לשנות JS === */
+@media (max-width: 640px) {
+  /* הטבלה לא תנסה להתרחב מעבר לקונטיינר */
+  #ledgerPane > div[style*="overflow:auto"] { overflow-x: auto; }
+  #ledgerPane table { table-layout: fixed; min-width: 520px; }
+
+  /* רוחבי עמודות קבועים וצרים; הערות מקבלות מקום דינאמי */
+  #ledgerPane thead th:nth-child(1),
+  #ledgerPane tbody td:nth-child(1) { width: 90px; }   /* תאריך */
+  #ledgerPane thead th:nth-child(2),
+  #ledgerPane tbody td:nth-child(2) { width: 100px; }  /* סכום */
+  /* הערות – נשבר שורה, לא נחתך */
+  #ledgerPane tbody td:nth-child(3) {
+    white-space: normal;
+    word-break: break-word;
+  }
+  /* עמודות "שולם" / "מחק" (או "פעולות") */
+  #ledgerPane thead th:nth-last-child(1),
+  #ledgerPane tbody td:nth-last-child(1) { width: 120px; }
+
+  /* קצת פחות ריווח */
+  #ledgerPane th, #ledgerPane td { padding: 8px; }
+
+  /* כפתורים קטנים יותר כדי שלא ידחפו את הטבלה */
+  .btn.small { padding: 4px 8px; font-size: 12px; }
+  /* אם יש לכם כפתור-גלולה של "שולם" */
+  .pill { padding: 4px 8px; font-size: 12px; }
+}
+
+
   
 </style>
 
