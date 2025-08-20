@@ -66,54 +66,42 @@ window.addEventListener('unhandledrejection', e=>{
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
 
-/* ===== רספונסיביות מובייל לטבלת הכרטסת — עם הערות נשארות ===== */
+
+
+  /* --- מובייל: התאמות עדינות לטבלת הכרטסת בלבד --- */
 @media (max-width: 640px) {
-  /* כפתורים ותאים קומפקטיים */
-  .btn { padding: 6px 10px; font-size: 14px; }
-  .btn.small { padding: 4px 8px; font-size: 12px; }
-  th, td { padding: 8px 6px; }
+  /* למנוע גלילת רוחב של כל הדף */
+  html, body { overflow-x: hidden; }
 
-  /* הטבלה לא תנסה להידחס בכוח — אם אין מקום, תתן גרירת רוחב */
-  #ledgerPane > div[style*="overflow:auto"] {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch; /* גלילה חלקה בנייד */
+  /* הטבלה עצמה תהיה רחבה מינימלית וניתנת לגרירה בתוך העטיפה שלה (שכבר יש לה overflow:auto) */
+  #ledgerPane table {
+    table-layout: fixed;
+    min-width: 560px;   /* מספיק כדי ש"מחיקת חשבונית" לא יעלים עמודות */
   }
 
-  table {
-    table-layout: fixed;      /* חלוקת רוחב עקבית */
-    min-width: 560px;         /* לא מתכווצת מעבר לנקודה נוחה */
-  }
-
-  /* הקצאת רוחבים ידניים לעמודות:
-     1: תאריך | 2: סכום | 3: הערות (גמישה) | 4: שולם | 5: מחק */
+  /* רוחבי עמודות: 1=תאריך, 2=סכום, 3=הערות (גמיש), 4=שולם, 5=מחק */
   #ledgerPane thead th:nth-child(1),
   #ledgerPane tbody td:nth-child(1) { width: 90px; }
   #ledgerPane thead th:nth-child(2),
   #ledgerPane tbody td:nth-child(2) { width: 90px; }
   #ledgerPane thead th:nth-child(3),
-  #ledgerPane tbody td:nth-child(3) { width: auto; }   /* הערות – גמיש */
+  #ledgerPane tbody td:nth-child(3) { width: auto; white-space: normal; word-break: break-word; }
   #ledgerPane thead th:nth-child(4),
   #ledgerPane tbody td:nth-child(4) { width: 88px; }
   #ledgerPane thead th:nth-child(5),
   #ledgerPane tbody td:nth-child(5) { width: 72px; }
 
-  /* הערות גמישות: ירידת שורה במקום לשבור את הפריסה */
-  #ledgerPane tbody td:nth-child(3) {
-    white-space: normal;
-    word-break: break-word;
-  }
-
-  /* ה"גלולה" של שולם קומפקטית */
+  /* קצת צמצום ריווח כדי שיראה טוב בנייד */
+  th, td { padding: 8px 6px; }
+  .btn.small { padding: 4px 8px; font-size: 12px; }
   .pill { gap: 4px; padding: 3px 6px; font-size: 12px; }
 }
 
-/* בדסקטופ—הערות נשברות יפה אם ארוכות */
+/* בדסקטופ—שבירת שורה להערות אם ארוכות מאוד */
 @media (min-width: 641px) {
-  #ledgerPane tbody td:nth-child(3) {
-    white-space: normal;
-    word-break: break-word;
-  }
+  #ledgerPane tbody td:nth-child(3) { white-space: normal; word-break: break-word; }
 }
+
   
 </style>
 
