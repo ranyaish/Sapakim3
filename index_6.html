@@ -143,52 +143,48 @@ window.addEventListener('unhandledrejection', e=>{
   }
 }
 
-  /* ===== התאמה עדינה לנייד בלי לגלול ובלי להעלים עמודות ===== */
+
+/* === תיקון מובייל לטופס הוספת חשבונית + טבלת כרטסת === */
 @media (max-width: 600px) {
-  /* שהטבלה תמדד לפי רוחבים קבועים ותיכנס למסך */
-  #ledgerPane table { table-layout: fixed; width: 100%; }
 
-  /* טיפה קטן וצפוף יותר */
-  #ledgerPane th,
-  #ledgerPane td {
-    padding: 8px 6px;
-    font-size: 14px;
-    vertical-align: middle;
+  /* מסדרים את שורת ההוספה כגריד: תאריך, סכום, הערות, וכפתור בצד ימין לאורך כל הגובה */
+  #ledgerPane > .row[style*="margin-top:10px"] {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr 110px !important;
+    grid-auto-rows: minmax(44px, auto) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
   }
 
-  /* חלוקת רוחב חכמה:
-     1) תאריך  2) סכום  3) הערות  4) שולם  5) מחק */
-  #ledgerPane thead th:nth-child(1),
-  #ledgerPane tbody td:nth-child(1) { width: 28%; }
-  #ledgerPane thead th:nth-child(2),
-  #ledgerPane tbody td:nth-child(2) { width: 22%; }
-  #ledgerPane thead th:nth-child(3),
-  #ledgerPane tbody td:nth-child(3) { width: 35%; }
-  #ledgerPane thead th:nth-child(4),
-  #ledgerPane tbody td:nth-child(4) { width: 10%; text-align: center; }
-  #ledgerPane thead th:nth-child(5),
-  #ledgerPane tbody td:nth-child(5) { width: 5%;  text-align: left; }
-
-  /* הערות: לשבור שורות יפה ולא לברוח שמאלה */
-  #ledgerPane tbody td:nth-child(3) {
-    white-space: normal;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    line-height: 1.35;
+  #invDate   { grid-column: 1 / span 1 !important; }
+  #invAmount { grid-column: 2 / span 1 !important; }
+  #invNotes  { grid-column: 1 / span 3 !important; } /* ההערות עוברות שורה ותופסות רוחב */
+  #addInvoiceBtn {
+    grid-column: 4 / span 1 !important;
+    grid-row: 1 / span 2 !important;   /* הכפתור בגובה שתי השורות */
+    width: 100% !important;
   }
 
-  /* הכפתורים קטנים יותר כדי לא לתפוס רוחב */
-  .btn.small { padding: 4px 8px; font-size: 13px; }
-  #addInvoiceBtn { padding: 10px 12px; }
+  /* שולטים ברוחב העמודות בטבלה ומונעים גלישה */
+  #ledgerPane table { table-layout: fixed !important; }
 
-  /* לסדר את שורת ההוספה שנראית טוב גם בנייד */
-  #ledgerPane .row[style*="margin-top:10px"] {
-    gap: 8px;
+  #ledgerPane thead th:nth-child(1){ width: 28% !important; } /* תאריך */
+  #ledgerPane thead th:nth-child(2){ width: 22% !important; } /* סכום */
+  #ledgerPane thead th:nth-child(3){ width: 34% !important; } /* הערות */
+  #ledgerPane thead th:nth-child(4){ width: 10% !important; } /* שולם */
+  #ledgerPane thead th:nth-child(5){ width: 16% !important; } /* מחק */
+
+  /* חיתוך אלגנטי של הערות ארוכות בנייד */
+  #ledgerPane tbody td:nth-child(3){
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
-  #invDate, #invAmount, #invNotes {
-    min-width: 0; /* כדי שלא ידחפו את הכפתור החוצה */
-  }
+
+  /* לא לאפשר לגלוש שמאלה */
+  #ledgerPane { overflow-x: hidden !important; }
 }
+  
   
 </style>
 
