@@ -132,6 +132,16 @@ window.addEventListener('unhandledrejection', e=>{
   .pill { padding: 4px 8px; font-size: 12px; }
 }
 
+/* כפתור "הוסף חשבונית" – התאמה לנייד */
+.invoice-row { align-items: flex-end; }
+
+@media (max-width: 560px) {
+  /* בנייד הכפתור ירד לשורה נפרדת ויהיה רחב ונראה */
+  #addInvoiceBtn {
+    order: 4;           /* שים אותו אחרי שלושת השדות */
+    width: 100%;        /* כפתור מלא רוחב, נוח ללחיצה */
+  }
+}
 
   
 </style>
@@ -183,7 +193,7 @@ window.addEventListener('unhandledrejection', e=>{
         </div>
       </div>
 
-      <div class="row" style="margin-top:10px">
+      <div class="row invoice-row" style="margin-top:10px">
         <input type="date" id="invDate">
         <input type="number" step="any" id="invAmount" placeholder="0">
         <input id="invNotes" class="grow" placeholder="הערות (אופציונלי)">
