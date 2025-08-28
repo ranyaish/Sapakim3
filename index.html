@@ -61,6 +61,11 @@ window.addEventListener('unhandledrejection', e=>{
   .modal h3 { margin:0 0 10px }
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
+
+  /* === עמודת "שולם" קומפקטית + תאריך קטן === */
+  td.paid-cell, th.paid-cell { width:1%; white-space:nowrap; }
+  .paid-wrap { display:flex; align-items:center; gap:6px; }
+  .paid-date { font-size:12px; color:var(--muted); }
 </style>
 
 <header>
@@ -119,7 +124,15 @@ window.addEventListener('unhandledrejection', e=>{
 
       <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
         <table>
-          <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th>תאריך</th>
+              <th>סכום</th>
+              <th>הערות</th>
+              <th class="paid-cell">שולם</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody id="invoiceTableBody"></tbody>
         </table>
       </div>
@@ -261,6 +274,16 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error);
   }
 
+  // === שמירת סטטוס "שולם" ===
+  async function savePaid(invId, paid, paidAtISO){
+    const payload = { paid };
+    // אם קיימת עמודה paid_at בטבלה שלך – בטל את ההערה:
+    // payload.paid_at = paid ? paidAtISO : null;
+
+    const { error } = await supabase.from('invoices').update(payload).eq('id', invId);
+    if (error) throw error;
+  }
+
   // ===== RENDER =====
   function renderSuppliers(){
     supplierList.innerHTML='';
@@ -285,27 +308,107 @@ window.addEventListener('unhandledrejection', e=>{
     const s = suppliers.find(x=>x.id===activeSupplierId);
     ledgerTitle.textContent='כרטסת: '+(s?.name||'');
 
-    const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
-    const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
-    grandTotalEl.textContent = fmt(total);
+    const arr = window.__allInvoices
+      .filter(i=>i.supplier_id===activeSupplierId)
+      .slice()
+      .sort((a,b)=> new Date(b.date)-new Date(a.date));
+
+    // סה״כ פתוח (רק לא-משולם)
+    const totalUnpaid = arr.reduce((t,i)=> t + (!i.paid ? (Number(i.amount)||0) : 0), 0);
+    grandTotalEl.textContent = fmt(totalUnpaid);
 
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
       const tr=document.createElement('tr'); const td=document.createElement('td');
-      td.colSpan=4; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
+      td.colSpan=5; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
       tr.appendChild(td); invoiceTableBody.appendChild(tr);
-    } else {
-      arr.forEach(i=>{
-        const tr=document.createElement('tr');
-        const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
-        const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
-        const td3=document.createElement('td'); td3.textContent=i.notes||'';
-        const td4=document.createElement('td'); const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
-        del.onclick=async()=>{ await deleteInvoice(i.id); await refreshAll(); };
-        td4.appendChild(del);
-        [td1,td2,td3,td4].forEach(x=>tr.appendChild(x)); invoiceTableBody.appendChild(tr);
-      });
+      return;
     }
+
+    arr.forEach(i=>{
+      const tr=document.createElement('tr');
+
+      const tdDate=document.createElement('td');
+      tdDate.textContent=new Date(i.date).toLocaleDateString('he-IL');
+
+      const tdAmount=document.createElement('td');
+      tdAmount.textContent=fmt(i.amount);
+
+      const tdNotes=document.createElement('td');
+      tdNotes.textContent=i.notes||'';
+
+      // ===== עמודת "שולם" + תאריך קטן =====
+      const tdPaid = document.createElement('td');
+      tdPaid.className = 'paid-cell';
+      const label = document.createElement('label');
+      label.className = 'paid-wrap';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!i.paid;
+
+      const small = document.createElement('span');
+      small.className = 'paid-date';
+      const initialDate = i._paidAtLocal || i.paid_at;
+      small.textContent = cb.checked && initialDate
+        ? new Date(initialDate).toLocaleDateString('he-IL')
+        : '';
+
+      cb.addEventListener('change', async ()=>{
+        const prev = !!i.paid;
+        const now  = !!cb.checked;
+        const nowISO = new Date().toISOString().slice(0,10);
+
+        // עדכון אופטימי
+        i.paid = now;
+        i._paidAtLocal = now ? nowISO : null;
+        small.textContent = now ? new Date(nowISO).toLocaleDateString('he-IL') : '';
+
+        // עדכון סה"כ מקומי מיידי
+        const totalLocal = window.__allInvoices
+          .filter(x=>x.supplier_id===activeSupplierId)
+          .reduce((sum,x)=> sum + (!x.paid ? (Number(x.amount)||0) : 0), 0);
+        grandTotalEl.textContent = fmt(totalLocal);
+
+        try {
+          await savePaid(i.id, now, nowISO);
+        } catch(err){
+          console.error('עדכון "שולם" נכשל:', err);
+          alert('עדכון "שולם" נכשל: '+(err.message||err));
+          // רוורט
+          i.paid = prev;
+          i._paidAtLocal = prev ? (i._paidAtLocal || nowISO) : null;
+          cb.checked = prev;
+          small.textContent = prev && i._paidAtLocal
+            ? new Date(i._paidAtLocal).toLocaleDateString('he-IL') : '';
+
+          const t = window.__allInvoices
+            .filter(x=>x.supplier_id===activeSupplierId)
+            .reduce((sum,x)=> sum + (!x.paid ? (Number(x.amount)||0) : 0), 0);
+          grandTotalEl.textContent = fmt(t);
+        }
+      });
+
+      label.appendChild(cb);
+      label.appendChild(small);
+      tdPaid.appendChild(label);
+
+      const tdDel=document.createElement('td');
+      const del=document.createElement('button');
+      del.className='btn small';
+      del.textContent='מחק';
+      del.onclick=async()=>{
+        if(!confirm('מאשר מחיקה?')) return;
+        await deleteInvoice(i.id);
+        window.__allInvoices = window.__allInvoices.filter(x=>x.id!==i.id);
+        renderLedger();
+      };
+      tdDel.appendChild(del);
+
+      // סדר לפי ה-<thead> החדש
+      [tdDate, tdAmount, tdNotes, tdPaid, tdDel].forEach(td=> tr.appendChild(td));
+      invoiceTableBody.appendChild(tr);
+    });
   }
 
   function monthStartEnd(ym){
