@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1.3.4-stable (+שולם ימני +תאריך)</title>
+<title>ניהול ספקים — v1-stable</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -43,7 +43,7 @@ window.addEventListener('unhandledrejection', e=>{
   .supplier-row.active { outline:2px solid #111827; outline-offset:2px; background:#eef2ff }
   .supplier-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; background:transparent; border:none }
   table { width:100%; border-collapse:separate; border-spacing:0 }
-  th,td { text-align:right; padding:10px; border-top:1px solid var(--border); vertical-align:middle }
+  th,td { text-align:right; padding:10px; border-top:1px solid var(--border) }
   thead th { background:#f3f4f6; border-top:none }
   .hidden { display:none }
   .badge { padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#fff }
@@ -62,10 +62,25 @@ window.addEventListener('unhandledrejection', e=>{
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
 
-  /* תא "שולם" קטן וצפוף */
-  .paid-cell { white-space:nowrap; width:1%; }
-  .paid-meta { display:inline-block; margin-right:6px; font-size:12px; color:var(--muted); }
+  /* ===== עמודת "שולם" מימין + תאריך מתחת לצ'קבוקס ===== */
+  .paid-cell {
+    width: 68px;
+    text-align: center;
+    white-space: normal;
+    padding: 6px 8px;
+  }
+  .paid-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.1;
+    color: var(--muted);
+  }
   .delete-cell { width:1%; white-space:nowrap; text-align:left; }
+
+  /* מובייל – שורת הוספת חשבונית: הכפתור תמיד בצד ימין */
+  .invoice-row { display:flex; gap:8px; align-items:center; }
+  .invoice-row #addInvoiceBtn { margin-inline-start:auto; }
 </style>
 
 <header>
@@ -115,7 +130,7 @@ window.addEventListener('unhandledrejection', e=>{
         </div>
       </div>
 
-      <div class="row" style="margin-top:10px">
+      <div class="row invoice-row" style="margin-top:10px">
         <input type="date" id="invDate">
         <input type="number" step="any" id="invAmount" placeholder="0">
         <input id="invNotes" class="grow" placeholder="הערות (אופציונלי)">
@@ -126,13 +141,11 @@ window.addEventListener('unhandledrejection', e=>{
         <table>
           <thead>
             <tr>
-              <!-- חדש: שולם בצד ימין (טור ראשון ב־RTL) -->
-              <th class="paid-cell">שולם</th>
+              <th>שולם</th>       <!-- ראשון = ימין -->
               <th>תאריך</th>
               <th>סכום</th>
               <th>הערות</th>
-              <!-- מחק נשאר שמאלי -->
-              <th class="delete-cell"></th>
+              <th></th>           <!-- מחק -->
             </tr>
           </thead>
           <tbody id="invoiceTableBody"></tbody>
@@ -141,7 +154,7 @@ window.addEventListener('unhandledrejection', e=>{
     </div>
   </section>
 
-  <!-- טאב סיכום חודשי (בלי שינוי לוגיקה כאן) -->
+  <!-- טאב סיכום חודשי -->
   <section class="card hidden" id="monthlyPane" style="grid-column:1 / -1">
     <div class="row" style="justify-content:space-between;align-items:center">
       <h3 style="margin:0">סיכום חודשי לכל הספקים</h3>
@@ -183,8 +196,13 @@ window.addEventListener('unhandledrejection', e=>{
   const $=s=>document.querySelector(s);
   const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
   const fmt=n=> new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
-  const todayISO = ()=> new Date().toISOString().slice(0,10);
-  const niceDate = d => d ? new Date(d).toLocaleDateString('he-IL') : '';
+  const todayISO = ()=> new Date().toISOString();
+  const niceDate = (d)=> {
+    if(!d) return '';
+    const x = (typeof d==='string') ? d : d.toISOString();
+    const only = x.slice(0,10);
+    try { return new Date(only).toLocaleDateString('he-IL'); } catch { return only; }
+  };
 
   // === Supabase CONFIG ===
   const SUPABASE_URL = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
@@ -278,30 +296,29 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error);
   }
 
-  // ===== SAVE paid (אופטימי) =====
-  async function savePaid(invId, checked){
-    // מוצאים את הרשומה בזיכרון ומעדכנים מיידית (אופטימי)
-    const item = window.__allInvoices.find(x=> x.id === invId);
-    if(!item) return;
-    const prev = { paid: item.paid, paid_at: item.paid_at };
-    item.paid   = !!checked;
-    item.paid_at= checked ? todayISO() : null;
-    renderLedger(); // ריענון מיידי של טבלה וסה״כ
+  // ===== RENDER =====
+  function calcOpenTotal(invoices){
+    return invoices.reduce((t,i)=> t + ((i.paid===true) ? 0 : (Number(i.amount)||0)), 0);
+  }
 
-    try{
-      const update = { paid: item.paid, paid_at: item.paid ? item.paid_at : null };
-      const { error } = await supabase.from('invoices').update(update).eq('id', invId);
-      if(error) throw error;
-    }catch(err){
-      // מחזירים אחורה במקרה כשל
-      item.paid = prev.paid;
-      item.paid_at = prev.paid_at;
-      renderLedger();
-      alert('עדכון "שולם" נכשל: ' + (err?.message || err));
+  async function savePaid(id, checked){
+    // Optimistic UI: עדכון מקומי
+    const inv = window.__allInvoices.find(x=>x.id===id);
+    if(inv){
+      inv.paid = !!checked;
+      inv.paid_at = checked ? todayISO() : null;
+      renderLedger(); // ריענון מהיר של הטבלה והסה״כ
+    }
+    // כתיבה ל־DB
+    const up = { paid: !!checked, paid_at: checked ? todayISO() : null };
+    const { error } = await supabase.from('invoices').update(up).eq('id', id);
+    if(error){
+      // ביטול אופטימי במקרה שגיאה
+      if(inv){ inv.paid = !checked; inv.paid_at = null; renderLedger(); }
+      alert('עדכון "שולם" נכשל: '+(error.message||error));
     }
   }
 
-  // ===== RENDER =====
   function renderSuppliers(){
     supplierList.innerHTML='';
     if(suppliers.length===0){
@@ -330,9 +347,7 @@ window.addEventListener('unhandledrejection', e=>{
       .slice()
       .sort((a,b)=> new Date(b.date)-new Date(a.date));
 
-    // סה"כ רק חשבוניות לא משולמות
-    const totalUnpaid = arr.reduce((t,i)=> t + ((i.paid===true) ? 0 : (Number(i.amount)||0)), 0);
-    grandTotalEl.textContent = fmt(totalUnpaid);
+    grandTotalEl.textContent = fmt(calcOpenTotal(arr));
 
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
@@ -345,32 +360,31 @@ window.addEventListener('unhandledrejection', e=>{
     arr.forEach(i=>{
       const tr=document.createElement('tr');
 
-      // עמודת "שולם" (ימין)
-      const tdPaid=document.createElement('td'); tdPaid.className='paid-cell';
-      const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = (i.paid===true);
+      // -- תא "שולם" (ימין)
+      const tdPaid=document.createElement('td');
+      tdPaid.className='paid-cell';
+      const cb=document.createElement('input');
+      cb.type='checkbox';
+      cb.checked = (i.paid===true);
       cb.onchange = ()=> savePaid(i.id, cb.checked);
-      const meta = document.createElement('span'); meta.className='paid-meta';
-      meta.textContent = cb.checked ? (niceDate(i.paid_at)||niceDate(todayISO())) : '';
+      const meta=document.createElement('span');
+      meta.className='paid-meta';
+      meta.textContent = cb.checked ? (niceDate(i.paid_at) || niceDate(todayISO())) : '';
       tdPaid.appendChild(cb); tdPaid.appendChild(meta);
 
-      // תאריך
-      const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
-      // סכום
-      const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
-      // הערות
-      const td3=document.createElement('td'); td3.textContent=i.notes||'';
-
-      // מחק (שמאל)
-      const td4=document.createElement('td'); td4.className='delete-cell';
+      // -- תאריך
+      const tdDate=document.createElement('td'); tdDate.textContent=new Date(i.date).toLocaleDateString('he-IL');
+      // -- סכום
+      const tdAmt=document.createElement('td'); tdAmt.textContent=fmt(i.amount);
+      // -- הערות
+      const tdNotes=document.createElement('td'); tdNotes.textContent=i.notes||'';
+      // -- מחק (שמאל)
+      const tdDel=document.createElement('td'); tdDel.className='delete-cell';
       const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
-      del.onclick=async()=>{
-        if(!confirm('מאשר למחוק את החשבונית?')) return;
-        if(!confirm('מאשר סופית למחוק? הפעולה אינה הפיכה.')) return;
-        await deleteInvoice(i.id); await refreshAll();
-      };
-      td4.appendChild(del);
+      del.onclick=async()=>{ if(confirm('מאשר למחוק את החשבונית?')){ await deleteInvoice(i.id); await refreshAll(); } };
+      tdDel.appendChild(del);
 
-      [tdPaid,td1,td2,td3,td4].forEach(x=>tr.appendChild(x));
+      [tdPaid, tdDate, tdAmt, tdNotes, tdDel].forEach(x=>tr.appendChild(x));
       invoiceTableBody.appendChild(tr);
     });
   }
@@ -399,6 +413,7 @@ window.addEventListener('unhandledrejection', e=>{
     const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
     const totalsBySupplier = {};
     monthInvoices.forEach(inv=>{
+      if(inv.paid===true) return; // נסכם רק פתוחות
       const sid = inv.supplier_id;
       totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
     });
@@ -468,7 +483,7 @@ window.addEventListener('unhandledrejection', e=>{
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
 
-    // LOGIN (רק click – יציב)
+    // LOGIN
     on(loginBtn, 'click', async (e)=>{
       e.preventDefault();
       e.stopPropagation();
@@ -479,7 +494,7 @@ window.addEventListener('unhandledrejection', e=>{
       authMsg.className='muted';
       try {
         const email=(emailEl.value||'').trim();
-        const password=(passEl.value||'')
+        const password=(passEl.value||'');
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if(error){
           console.error('LOGIN ERROR:', error);
@@ -505,7 +520,7 @@ window.addEventListener('unhandledrejection', e=>{
       await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
     });
 
-    // Add supplier (אנטי-כפולים)
+    // Add supplier
     on($('#addSupplierBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingSupplier) return;
@@ -524,14 +539,14 @@ window.addEventListener('unhandledrejection', e=>{
       } finally { setTimeout(()=>{ window.__addingSupplier = false; }, 300); }
     });
 
-    // Add invoice (אנטי-כפולים)
+    // Add invoice
     on($('#addInvoiceBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingInvoice) return;
       window.__addingInvoice = true;
       try {
         if(!activeSupplierId) return;
-        const date = invDate.value || todayISO();
+        const date = invDate.value || new Date().toISOString().slice(0,10);
         const amount = parseFloat(invAmount.value || '0');
         const notes = invNotes.value || '';
         await addInvoice(activeSupplierId, date, amount, notes);
