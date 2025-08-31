@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1-stable</title>
+<title>ניהול ספקים — v1.3.4-stable (with saved selection)</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -61,18 +61,13 @@ window.addEventListener('unhandledrejection', e=>{
   .modal h3 { margin:0 0 10px }
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
-
-  /* טבלת חשבוניות – עמודת שולם לימין עם תאריך קטן */
-  .paid-cell { display:flex; align-items:center; gap:6px; justify-content:flex-start }
-  .paid-cell small { color:var(--muted) }
 </style>
 
 <header>
   <div class="row">
     <h1>ניהול ספקים</h1>
-    <span class="badge">v1-stable</span>
-    <!-- קישור לסיכום חודשי -->
-    <a class="btn small" href="payments.html" style="text-decoration:none">סיכום חודשי לספקים</a>
+    <span class="badge">v1.3.4-stable</span>
+    <!-- הוסר טקסט ה-URL שהיה כאן בעבר -->
   </div>
   <div class="row">
     <input id="email" placeholder="אימייל" autocomplete="username">
@@ -124,15 +119,7 @@ window.addEventListener('unhandledrejection', e=>{
 
       <div style="margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px">
         <table>
-          <thead>
-            <tr>
-              <th>תאריך</th>
-              <th>סכום</th>
-              <th>הערות</th>
-              <th>שולם</th>
-              <th></th>
-            </tr>
-          </thead>
+          <thead><tr><th>תאריך</th><th>סכום</th><th>הערות</th><th></th></tr></thead>
           <tbody id="invoiceTableBody"></tbody>
         </table>
       </div>
@@ -182,13 +169,16 @@ window.addEventListener('unhandledrejection', e=>{
   const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
   const fmt=n=> new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
 
-  // === Supabase CONFIG === (אותו פרויקט)
+  // === Supabase CONFIG ===
   const SUPABASE_URL = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A';
 
   let supabase=null, currentUser=null;
   let suppliers=[], activeSupplierId=null;
   window.__allInvoices = [];
+
+  // מפתח לשמירת בחירת ספק
+  const STORAGE_KEY_ACTIVE = 'activeSupplierId';
 
   // auth refs
   const authMsg=$('#authMsg'), appEl=$('#app'), emailEl=$('#email'), passEl=$('#password'),
@@ -229,10 +219,21 @@ window.addEventListener('unhandledrejection', e=>{
       appEl.classList.add('hidden');
       navTabs.classList.add('hidden');
       logoutBtn.classList.add('hidden');
-      whoami.classList.add('hidden'); whoami.textContent='';
+      whoami.classList.add('hidden');
+      whoami.textContent='';
       emailEl.classList.remove('hidden'); passEl.classList.remove('hidden'); loginBtn.classList.remove('hidden');
       authMsg.textContent=''; authMsg.className='';
     }
+  }
+
+  // === פונקציה מרכזית לעדכון ספק פעיל + שמירה ב-sessionStorage ===
+  function setActiveSupplier(id){
+    activeSupplierId = id || null;
+    try {
+      if (id) sessionStorage.setItem(STORAGE_KEY_ACTIVE, id);
+      else sessionStorage.removeItem(STORAGE_KEY_ACTIVE);
+    } catch(_) {}
+    renderAllViews();
   }
 
   // ===== DB =====
@@ -241,8 +242,7 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error); return data||[];
   }
   async function loadInvoicesForMonth(isoStart, isoEnd){
-    const { data, error } = await supabase.from('invoices')
-      .select('*').gte('date', isoStart).lt('date', isoEnd);
+    const { data, error } = await supabase.from('invoices').select('*').gte('date', isoStart).lt('date', isoEnd);
     if(error) console.error(error);
     return data||[];
   }
@@ -264,6 +264,11 @@ window.addEventListener('unhandledrejection', e=>{
   async function deleteSupplier(id){
     const { error } = await supabase.from('suppliers').delete().eq('id',id);
     if(error) console.error(error);
+    // אם מחקנו את הספק הפעיל — ננקה בחירה שמורה
+    if (activeSupplierId === id) {
+      try { sessionStorage.removeItem(STORAGE_KEY_ACTIVE); } catch(_) {}
+      activeSupplierId = null;
+    }
   }
   async function addInvoice(supplier_id,date,amount,notes){
     const { error } = await supabase.from('invoices').insert({supplier_id,date,amount,notes});
@@ -272,26 +277,6 @@ window.addEventListener('unhandledrejection', e=>{
   async function deleteInvoice(id){
     const { error } = await supabase.from('invoices').delete().eq('id',id);
     if(error) console.error(error);
-  }
-
-  // עדכון "שולם" עם תאריך היום (אופטימי)
-  async function setInvoicePaid(inv, checked){
-    const today = new Date().toISOString().slice(0,10);
-    const payload = { paid: checked, paid_at: checked ? today : null };
-
-    // עדכון אופטימי בדאטה המקומית + רינדור
-    inv.paid = checked;
-    inv.paid_at = payload.paid_at;
-    renderLedger();
-
-    const { error } = await supabase.from('invoices').update(payload).eq('id', inv.id);
-    if(error){
-      alert('עדכון "שולם" נכשל: ' + error.message);
-      // שחזור ערך מקומי אם נכשל
-      inv.paid = !checked;
-      inv.paid_at = !checked ? (inv.paid_at || null) : null;
-      renderLedger();
-    }
   }
 
   // ===== RENDER =====
@@ -306,7 +291,7 @@ window.addEventListener('unhandledrejection', e=>{
       const row=document.createElement('div'); row.className='supplier-row'+(activeSupplierId===s.id?' active':'');
       const btn=document.createElement('button'); btn.className='supplier-name'; btn.textContent=s.name;
       const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
-      btn.onclick=()=>{activeSupplierId=s.id; renderAllViews();};
+      btn.onclick=()=>{ setActiveSupplier(s.id); };
       del.onclick=async()=>{ if(confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')){ await deleteSupplier(s.id); await refreshAll(); } };
       row.appendChild(btn); row.appendChild(del); li.appendChild(row); supplierList.appendChild(li);
     });
@@ -318,54 +303,25 @@ window.addEventListener('unhandledrejection', e=>{
     const s = suppliers.find(x=>x.id===activeSupplierId);
     ledgerTitle.textContent='כרטסת: '+(s?.name||'');
 
-    const arr = window.__allInvoices
-      .filter(i=>i.supplier_id===activeSupplierId)
-      .slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
-
-    // סה"כ פתוח לתשלום (מחשיב רק לא-שולם)
-    const total = arr.reduce((t,i)=> t + (!i.paid ? (Number(i.amount)||0) : 0), 0);
+    const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
+    const total = arr.reduce((t,i)=>t+(Number(i.amount)||0),0);
     grandTotalEl.textContent = fmt(total);
 
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
       const tr=document.createElement('tr'); const td=document.createElement('td');
-      td.colSpan=5; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
+      td.colSpan=4; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
       tr.appendChild(td); invoiceTableBody.appendChild(tr);
     } else {
       arr.forEach(i=>{
         const tr=document.createElement('tr');
-
         const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
         const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
         const td3=document.createElement('td'); td3.textContent=i.notes||'';
-
-        // עמודת "שולם" – צ'קבוקס ותאריך קטן
-        const tdPaid=document.createElement('td');
-        const wrap=document.createElement('div'); wrap.className='paid-cell';
-        const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!i.paid;
-        const lbl=document.createElement('small');
-        lbl.textContent = (i.paid && i.paid_at) ? new Date(i.paid_at).toLocaleDateString('he-IL') : '';
-        cb.onchange = async (e)=>{
-          const checked = e.target.checked;
-          // תאריך מיידי ב־UI
-          lbl.textContent = checked ? new Date().toLocaleDateString('he-IL') : '';
-          await setInvoicePaid(i, checked);
-        };
-        wrap.appendChild(cb); wrap.appendChild(lbl); tdPaid.appendChild(wrap);
-
-        // מחיקה
-        const td4=document.createElement('td'); 
-        const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
-        del.onclick=async()=>{ 
-          if(confirm('מאשר למחוק את החשבונית?')){
-            await deleteInvoice(i.id); 
-            await refreshAll(); 
-          }
-        };
+        const td4=document.createElement('td'); const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+        del.onclick=async()=>{ await deleteInvoice(i.id); await refreshAll(); };
         td4.appendChild(del);
-
-        [td1,td2,td3,tdPaid,td4].forEach(x=>tr.appendChild(x));
-        invoiceTableBody.appendChild(tr);
+        [td1,td2,td3,td4].forEach(x=>tr.appendChild(x)); invoiceTableBody.appendChild(tr);
       });
     }
   }
@@ -410,8 +366,7 @@ window.addEventListener('unhandledrejection', e=>{
       link.textContent = s.name;
       link.onclick = ()=>{
         setActiveTab('suppliers');
-        activeSupplierId = s.id;
-        renderAllViews();
+        setActiveSupplier(s.id);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       };
 
@@ -436,7 +391,15 @@ window.addEventListener('unhandledrejection', e=>{
   async function refreshAll(){
     suppliers = await loadSuppliers();
     window.__allInvoices = await loadInvoicesAll();
-    if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
+
+    // נסה לשחזר ספק שנשמר ב-sessionStorage
+    let saved = null;
+    try { saved = sessionStorage.getItem(STORAGE_KEY_ACTIVE) || null; } catch(_) {}
+    if (saved && suppliers.some(s=>s.id===saved)) {
+      activeSupplierId = saved;
+    } else if (suppliers.length && !activeSupplierId) {
+      activeSupplierId = suppliers[0].id;
+    }
     renderAllViews();
   }
 
@@ -474,7 +437,7 @@ window.addEventListener('unhandledrejection', e=>{
       authMsg.className='muted';
       try {
         const email=(emailEl.value||'').trim();
-        const password=(passEl.value||''); // לא עושים trim לסיסמה
+        const password=(passEl.value||'');
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if(error){
           console.error('LOGIN ERROR:', error);
@@ -495,12 +458,13 @@ window.addEventListener('unhandledrejection', e=>{
       }
     });
 
-    // LOGOUT
+    // LOGOUT (ניקוי בחירה שמורה)
     on(logoutBtn, 'click', async ()=>{
+      try { sessionStorage.removeItem(STORAGE_KEY_ACTIVE); } catch(_) {}
       await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
     });
 
-    // Add supplier
+    // Add supplier (אנטי-כפולים)
     on($('#addSupplierBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingSupplier) return;
@@ -515,11 +479,11 @@ window.addEventListener('unhandledrejection', e=>{
           const s = suppliers.find(x => x && x.name === name);
           if (s) newId = s.id;
         }
-        if (newId) { activeSupplierId = newId; renderAllViews(); }
+        if (newId) { setActiveSupplier(newId); }
       } finally { setTimeout(()=>{ window.__addingSupplier = false; }, 300); }
     });
 
-    // Add invoice
+    // Add invoice (אנטי-כפולים)
     on($('#addInvoiceBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingInvoice) return;
@@ -559,7 +523,7 @@ window.addEventListener('unhandledrejection', e=>{
           const s = suppliers.find(x => x && x.name === name);
           if (s) newId = s.id;
         }
-        if (newId) { activeSupplierId = newId; renderAllViews(); closeSupplierPicker(); }
+        if (newId) { setActiveSupplier(newId); closeSupplierPicker(); }
       } finally { setTimeout(()=>{ window.__addingSupplier2 = false; }, 300); }
     });
 
@@ -570,8 +534,12 @@ window.addEventListener('unhandledrejection', e=>{
       setActiveTab('suppliers'); await refreshAll();
     }
     supabase.auth.onAuthStateChange(async (_e, sess)=>{
-      if(sess?.user){ currentUser=sess.user; setAuthUI(true, currentUser.email); setActiveTab('suppliers'); await refreshAll(); }
-      else { currentUser=null; setAuthUI(false); }
+      if(sess?.user){
+        currentUser=sess.user; setAuthUI(true, currentUser.email);
+        setActiveTab('suppliers'); await refreshAll();
+      } else {
+        currentUser=null; setAuthUI(false);
+      }
     });
   }
 
@@ -605,9 +573,8 @@ window.addEventListener('unhandledrejection', e=>{
       btn.className = 'supplier-name';
       btn.textContent = s.name || '(ללא שם)';
       btn.onclick = ()=>{
-        activeSupplierId = s.id;
+        setActiveSupplier(s.id);
         closeSupplierPicker();
-        renderAllViews();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       };
       row.appendChild(btn);
