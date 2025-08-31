@@ -190,6 +190,26 @@ window.addEventListener('unhandledrejection', e=>{
   let suppliers=[], activeSupplierId=null;
   window.__allInvoices = [];
 
+  // ===== תאריך מקומי =====
+  function localISODate(d=new Date()){
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`; // נשמר ב-DB בפורמט סטנדרטי, אבל מקומי (לא UTC)
+  }
+  function formatDMY(d=new Date()){
+    const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0'), yy=d.getFullYear();
+    return `${dd}/${mm}/${yy}`; // תצוגה dd/mm/yyyy
+  }
+  function toDisplayDate(val){
+    if(!val) return '';
+    // אם כבר ISO (YYYY-MM-DD) — הפוך ל-dd/mm/yyyy
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y,m,d]=val.split('-'); return `${d}/${m}/${y}`;
+    }
+    // נסה לפרסר כ-Date (למקרה של ערך אחר)
+    const dt = new Date(val);
+    return isNaN(dt) ? String(val) : formatDMY(dt);
+  }
+
   // auth refs
   const authMsg=$('#authMsg'), appEl=$('#app'), emailEl=$('#email'), passEl=$('#password'),
         loginBtn=$('#loginBtn'), logoutBtn=$('#logoutBtn'), whoami=$('#whoami'), navTabs=$('#navTabs');
@@ -219,19 +239,10 @@ window.addEventListener('unhandledrejection', e=>{
   // ===== שמירת מצב ב-localStorage =====
   const LS_SUPPLIER_KEY = 'activeSupplierId';
   const LS_TAB_KEY = 'lastActiveTab';
-
-  function saveActiveSupplier(id){
-    try { localStorage.setItem(LS_SUPPLIER_KEY, id || ''); } catch(_) {}
-  }
-  function loadActiveSupplier(){
-    try { return localStorage.getItem(LS_SUPPLIER_KEY) || null; } catch(_) { return null; }
-  }
-  function saveActiveTab(tab){
-    try { localStorage.setItem(LS_TAB_KEY, tab); } catch(_) {}
-  }
-  function loadActiveTab(){
-    try { return localStorage.getItem(LS_TAB_KEY) || null; } catch(_) { return null; }
-  }
+  function saveActiveSupplier(id){ try { localStorage.setItem(LS_SUPPLIER_KEY, id || ''); } catch(_) {} }
+  function loadActiveSupplier(){ try { return localStorage.getItem(LS_SUPPLIER_KEY) || null; } catch(_) { return null; } }
+  function saveActiveTab(tab){ try { localStorage.setItem(LS_TAB_KEY, tab); } catch(_) {} }
+  function loadActiveTab(){ try { return localStorage.getItem(LS_TAB_KEY) || null; } catch(_) { return null; } }
 
   function setAuthUI(on, email){
     if(on){
@@ -291,10 +302,9 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error);
   }
 
-  // עדכון "שולם" עם תאריך היום (אופטימי)
+  // עדכון "שולם" עם תאריך היום המקומי (אופטימי)
   async function setInvoicePaid(inv, checked){
-    const today = new Date().toISOString().slice(0,10);
-    const payload = { paid: checked, paid_at: checked ? today : null };
+    const payload = { paid: checked, paid_at: checked ? localISODate() : null };
 
     // עדכון אופטימי + רינדור
     const prevPaid = inv.paid, prevPaidAt = inv.paid_at;
@@ -355,16 +365,16 @@ window.addEventListener('unhandledrejection', e=>{
         const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
         const td3=document.createElement('td'); td3.textContent=i.notes||'';
 
-        // עמודת "שולם" – צ'קבוקס ותאריך קטן
+        // עמודת "שולם" – צ'קבוקס ותאריך קטן (dd/mm/yyyy)
         const tdPaid=document.createElement('td');
         const wrap=document.createElement('div'); wrap.className='paid-cell';
         const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!i.paid;
         const lbl=document.createElement('small');
-        lbl.textContent = (i.paid && i.paid_at) ? new Date(i.paid_at).toLocaleDateString('he-IL') : '';
+        lbl.textContent = (i.paid && i.paid_at) ? toDisplayDate(i.paid_at) : '';
         cb.onchange = async (e)=>{
           const checked = e.target.checked;
-          // עדכון תצוגתי מיידי
-          lbl.textContent = checked ? new Date().toLocaleDateString('he-IL') : '';
+          // תצוגה מיידית מקומית
+          lbl.textContent = checked ? formatDMY(new Date()) : '';
           await setInvoicePaid(i, checked);
         };
         wrap.appendChild(cb); wrap.appendChild(lbl); tdPaid.appendChild(wrap);
@@ -512,7 +522,7 @@ window.addEventListener('unhandledrejection', e=>{
         currentUser=session?.user || data?.user || null;
         setAuthUI(!!currentUser, currentUser?.email);
 
-        // שחזור טאב אחרון אם קיים, אחרת ברירת מחדל 'suppliers'
+        // שחזור טאב אחרון אם קיים, אחרת 'suppliers'
         const savedTab = loadActiveTab() || 'suppliers';
         setActiveTab(savedTab);
 
@@ -599,11 +609,9 @@ window.addEventListener('unhandledrejection', e=>{
     if(session?.user){
       currentUser=session.user; setAuthUI(true, currentUser.email);
 
-      // שחזור טאב אחרון אם קיים, אחרת ברירת מחדל 'suppliers'
       const savedTab = loadActiveTab() || 'suppliers';
       setActiveTab(savedTab);
 
-      // שחזור ספק אחרון אם קיים
       const savedSupplier = loadActiveSupplier();
       if (savedSupplier) activeSupplierId = savedSupplier;
 
