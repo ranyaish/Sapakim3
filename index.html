@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ניהול ספקים — v1.3.5-stable</title>
+<title>ניהול ספקים — v1-stable</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -62,17 +62,17 @@ window.addEventListener('unhandledrejection', e=>{
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
 
-  /* === עמודת "שולם" קומפקטית + תאריך קטן === */
-  td.paid-cell, th.paid-cell { width:1%; white-space:nowrap; }
-  .paid-wrap { display:flex; align-items:center; gap:6px; }
-  .paid-date { font-size:12px; color:var(--muted); }
+  /* טבלת חשבוניות – צ’קבוקס ותאריך קטן לידו */
+  .paid-cell { display:flex; align-items:center; gap:6px; justify-content:flex-start }
+  .paid-cell small { color:var(--muted) }
 </style>
 
 <header>
   <div class="row">
     <h1>ניהול ספקים</h1>
-    <span class="badge">v1.3.4-stable</span>
-    <span class="muted">URL: uzaqpwbejceyuhnmfdmq.supabase.co</span>
+    <span class="badge">v1-stable</span>
+    <!-- קישור לסיכום חודשי -->
+    <a class="btn small" href="payments.html" style="text-decoration:none">סיכום חודשי לספקים</a>
   </div>
   <div class="row">
     <input id="email" placeholder="אימייל" autocomplete="username">
@@ -91,7 +91,7 @@ window.addEventListener('unhandledrejection', e=>{
 </div>
 
 <main id="app" class="hidden">
-  <!-- טאב ספקים: משאירים את הרשימה (למי שאוהב), אבל נשתמש בפופ־אפ לבחירה מהירה -->
+  <!-- טאב ספקים -->
   <aside class="card" id="suppliersPane">
     <h3 style="margin:0 0 10px">ספקים</h3>
     <div class="row">
@@ -129,7 +129,7 @@ window.addEventListener('unhandledrejection', e=>{
               <th>תאריך</th>
               <th>סכום</th>
               <th>הערות</th>
-              <th class="paid-cell">שולם</th>
+              <th>שולם</th>
               <th></th>
             </tr>
           </thead>
@@ -182,13 +182,33 @@ window.addEventListener('unhandledrejection', e=>{
   const on=(el,ev,fn,opts)=> el&&el.addEventListener(ev,fn,opts||false);
   const fmt=n=> new Intl.NumberFormat('he-IL',{style:'currency',currency:'ILS'}).format(Number(n)||0);
 
-  // === Supabase CONFIG ===
+  // === Supabase CONFIG === (אותו פרויקט)
   const SUPABASE_URL = 'https://uzaqpwbejceyuhnmfdmq.supabase.co';
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6YXFwd2JlamNleXVobm1mZG1xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODc3NzMsImV4cCI6MjA3MDg2Mzc3M30.Wcuu97xzFvJCt8x2ubHLwc19-ZsfrRLK9YZHICV3T3A';
 
   let supabase=null, currentUser=null;
   let suppliers=[], activeSupplierId=null;
   window.__allInvoices = [];
+
+  // ===== תאריך מקומי =====
+  function localISODate(d=new Date()){
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`; // נשמר ב-DB בפורמט סטנדרטי, אבל מקומי (לא UTC)
+  }
+  function formatDMY(d=new Date()){
+    const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0'), yy=d.getFullYear();
+    return `${dd}/${mm}/${yy}`; // תצוגה dd/mm/yyyy
+  }
+  function toDisplayDate(val){
+    if(!val) return '';
+    // אם כבר ISO (YYYY-MM-DD) — הפוך ל-dd/mm/yyyy
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y,m,d]=val.split('-'); return `${d}/${m}/${y}`;
+    }
+    // נסה לפרסר כ-Date (למקרה של ערך אחר)
+    const dt = new Date(val);
+    return isNaN(dt) ? String(val) : formatDMY(dt);
+  }
 
   // auth refs
   const authMsg=$('#authMsg'), appEl=$('#app'), emailEl=$('#email'), passEl=$('#password'),
@@ -216,6 +236,14 @@ window.addEventListener('unhandledrejection', e=>{
   const supplierName2 = $('#supplierName2');
   const addSupplierBtn2 = $('#addSupplierBtn2');
 
+  // ===== שמירת מצב ב-localStorage =====
+  const LS_SUPPLIER_KEY = 'activeSupplierId';
+  const LS_TAB_KEY = 'lastActiveTab';
+  function saveActiveSupplier(id){ try { localStorage.setItem(LS_SUPPLIER_KEY, id || ''); } catch(_) {} }
+  function loadActiveSupplier(){ try { return localStorage.getItem(LS_SUPPLIER_KEY) || null; } catch(_) { return null; } }
+  function saveActiveTab(tab){ try { localStorage.setItem(LS_TAB_KEY, tab); } catch(_) {} }
+  function loadActiveTab(){ try { return localStorage.getItem(LS_TAB_KEY) || null; } catch(_) { return null; } }
+
   function setAuthUI(on, email){
     if(on){
       appEl.classList.remove('hidden');
@@ -229,8 +257,7 @@ window.addEventListener('unhandledrejection', e=>{
       appEl.classList.add('hidden');
       navTabs.classList.add('hidden');
       logoutBtn.classList.add('hidden');
-      whoami.classList.add('hidden');
-      whoami.textContent='';
+      whoami.classList.add('hidden'); whoami.textContent='';
       emailEl.classList.remove('hidden'); passEl.classList.remove('hidden'); loginBtn.classList.remove('hidden');
       authMsg.textContent=''; authMsg.className='';
     }
@@ -242,7 +269,8 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error); return data||[];
   }
   async function loadInvoicesForMonth(isoStart, isoEnd){
-    const { data, error } = await supabase.from('invoices').select('*').gte('date', isoStart).lt('date', isoEnd);
+    const { data, error } = await supabase.from('invoices')
+      .select('*').gte('date', isoStart).lt('date', isoEnd);
     if(error) console.error(error);
     return data||[];
   }
@@ -274,14 +302,23 @@ window.addEventListener('unhandledrejection', e=>{
     if(error) console.error(error);
   }
 
-  // === שמירת סטטוס "שולם" ===
-  async function savePaid(invId, paid, paidAtISO){
-    const payload = { paid };
-    // אם קיימת עמודה paid_at בטבלה שלך – בטל את ההערה:
-    // payload.paid_at = paid ? paidAtISO : null;
+  // עדכון "שולם" עם תאריך היום המקומי (אופטימי)
+  async function setInvoicePaid(inv, checked){
+    const payload = { paid: checked, paid_at: checked ? localISODate() : null };
 
-    const { error } = await supabase.from('invoices').update(payload).eq('id', invId);
-    if (error) throw error;
+    // עדכון אופטימי + רינדור
+    const prevPaid = inv.paid, prevPaidAt = inv.paid_at;
+    inv.paid = checked;
+    inv.paid_at = payload.paid_at;
+    renderLedger();
+
+    const { error } = await supabase.from('invoices').update(payload).eq('id', inv.id);
+    if(error){
+      alert('עדכון "שולם" נכשל: ' + error.message);
+      inv.paid = prevPaid;
+      inv.paid_at = prevPaidAt;
+      renderLedger();
+    }
   }
 
   // ===== RENDER =====
@@ -296,7 +333,7 @@ window.addEventListener('unhandledrejection', e=>{
       const row=document.createElement('div'); row.className='supplier-row'+(activeSupplierId===s.id?' active':'');
       const btn=document.createElement('button'); btn.className='supplier-name'; btn.textContent=s.name;
       const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
-      btn.onclick=()=>{activeSupplierId=s.id; renderAllViews();};
+      btn.onclick=()=>{activeSupplierId=s.id; saveActiveSupplier(s.id); renderAllViews();};
       del.onclick=async()=>{ if(confirm('למחוק את הספק "'+s.name+'" וכל החשבוניות שלו?')){ await deleteSupplier(s.id); await refreshAll(); } };
       row.appendChild(btn); row.appendChild(del); li.appendChild(row); supplierList.appendChild(li);
     });
@@ -310,105 +347,53 @@ window.addEventListener('unhandledrejection', e=>{
 
     const arr = window.__allInvoices
       .filter(i=>i.supplier_id===activeSupplierId)
-      .slice()
-      .sort((a,b)=> new Date(b.date)-new Date(a.date));
+      .slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
 
-    // סה״כ פתוח (רק לא-משולם)
-    const totalUnpaid = arr.reduce((t,i)=> t + (!i.paid ? (Number(i.amount)||0) : 0), 0);
-    grandTotalEl.textContent = fmt(totalUnpaid);
+    // סה"כ פתוח לתשלום (מחשיב רק לא-שולם)
+    const total = arr.reduce((t,i)=> t + (!i.paid ? (Number(i.amount)||0) : 0), 0);
+    grandTotalEl.textContent = fmt(total);
 
     invoiceTableBody.innerHTML='';
     if(arr.length===0){
       const tr=document.createElement('tr'); const td=document.createElement('td');
       td.colSpan=5; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
       tr.appendChild(td); invoiceTableBody.appendChild(tr);
-      return;
-    }
+    } else {
+      arr.forEach(i=>{
+        const tr=document.createElement('tr');
+        const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
+        const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
+        const td3=document.createElement('td'); td3.textContent=i.notes||'';
 
-    arr.forEach(i=>{
-      const tr=document.createElement('tr');
+        // עמודת "שולם" – צ'קבוקס ותאריך קטן (dd/mm/yyyy)
+        const tdPaid=document.createElement('td');
+        const wrap=document.createElement('div'); wrap.className='paid-cell';
+        const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!i.paid;
+        const lbl=document.createElement('small');
+        lbl.textContent = (i.paid && i.paid_at) ? toDisplayDate(i.paid_at) : '';
+        cb.onchange = async (e)=>{
+          const checked = e.target.checked;
+          // תצוגה מיידית מקומית
+          lbl.textContent = checked ? formatDMY(new Date()) : '';
+          await setInvoicePaid(i, checked);
+        };
+        wrap.appendChild(cb); wrap.appendChild(lbl); tdPaid.appendChild(wrap);
 
-      const tdDate=document.createElement('td');
-      tdDate.textContent=new Date(i.date).toLocaleDateString('he-IL');
+        // מחיקה
+        const td4=document.createElement('td');
+        const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+        del.onclick=async()=>{
+          if(confirm('מאשר למחוק את החשבונית?')){
+            await deleteInvoice(i.id);
+            await refreshAll();
+          }
+        };
+        td4.appendChild(del);
 
-      const tdAmount=document.createElement('td');
-      tdAmount.textContent=fmt(i.amount);
-
-      const tdNotes=document.createElement('td');
-      tdNotes.textContent=i.notes||'';
-
-      // ===== עמודת "שולם" + תאריך קטן =====
-      const tdPaid = document.createElement('td');
-      tdPaid.className = 'paid-cell';
-      const label = document.createElement('label');
-      label.className = 'paid-wrap';
-
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = !!i.paid;
-
-      const small = document.createElement('span');
-      small.className = 'paid-date';
-      const initialDate = i._paidAtLocal || i.paid_at;
-      small.textContent = cb.checked && initialDate
-        ? new Date(initialDate).toLocaleDateString('he-IL')
-        : '';
-
-      cb.addEventListener('change', async ()=>{
-        const prev = !!i.paid;
-        const now  = !!cb.checked;
-        const nowISO = new Date().toISOString().slice(0,10);
-
-        // עדכון אופטימי
-        i.paid = now;
-        i._paidAtLocal = now ? nowISO : null;
-        small.textContent = now ? new Date(nowISO).toLocaleDateString('he-IL') : '';
-
-        // עדכון סה"כ מקומי מיידי
-        const totalLocal = window.__allInvoices
-          .filter(x=>x.supplier_id===activeSupplierId)
-          .reduce((sum,x)=> sum + (!x.paid ? (Number(x.amount)||0) : 0), 0);
-        grandTotalEl.textContent = fmt(totalLocal);
-
-        try {
-          await savePaid(i.id, now, nowISO);
-        } catch(err){
-          console.error('עדכון "שולם" נכשל:', err);
-          alert('עדכון "שולם" נכשל: '+(err.message||err));
-          // רוורט
-          i.paid = prev;
-          i._paidAtLocal = prev ? (i._paidAtLocal || nowISO) : null;
-          cb.checked = prev;
-          small.textContent = prev && i._paidAtLocal
-            ? new Date(i._paidAtLocal).toLocaleDateString('he-IL') : '';
-
-          const t = window.__allInvoices
-            .filter(x=>x.supplier_id===activeSupplierId)
-            .reduce((sum,x)=> sum + (!x.paid ? (Number(x.amount)||0) : 0), 0);
-          grandTotalEl.textContent = fmt(t);
-        }
+        [td1,td2,td3,tdPaid,td4].forEach(x=>tr.appendChild(x));
+        invoiceTableBody.appendChild(tr);
       });
-
-      label.appendChild(cb);
-      label.appendChild(small);
-      tdPaid.appendChild(label);
-
-      const tdDel=document.createElement('td');
-      const del=document.createElement('button');
-      del.className='btn small';
-      del.textContent='מחק';
-      del.onclick=async()=>{
-        if(!confirm('מאשר מחיקה?')) return;
-        await deleteInvoice(i.id);
-        window.__allInvoices = window.__allInvoices.filter(x=>x.id!==i.id);
-        renderLedger();
-      };
-      tdDel.appendChild(del);
-
-      // סדר לפי ה-<thead> החדש
-      [tdDate, tdAmount, tdNotes, tdPaid, tdDel].forEach(td=> tr.appendChild(td));
-      invoiceTableBody.appendChild(tr);
-    });
+    }
   }
 
   function monthStartEnd(ym){
@@ -452,6 +437,7 @@ window.addEventListener('unhandledrejection', e=>{
       link.onclick = ()=>{
         setActiveTab('suppliers');
         activeSupplierId = s.id;
+        saveActiveSupplier(s.id);
         renderAllViews();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       };
@@ -477,13 +463,23 @@ window.addEventListener('unhandledrejection', e=>{
   async function refreshAll(){
     suppliers = await loadSuppliers();
     window.__allInvoices = await loadInvoicesAll();
+
+    // נסה לשחזר ספק פעיל ששמור
+    if (!activeSupplierId) {
+      const saved = loadActiveSupplier();
+      if (saved && suppliers.some(s=>s.id===saved)) {
+        activeSupplierId = saved;
+      }
+    }
     if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
+
     renderAllViews();
   }
 
-  // Tabs
+  // Tabs + שמירת טאב נוכחי
   function setActiveTab(which){
     [tabSuppliers, tabMonthly].forEach(b=>b && b.classList.remove('active'));
+    saveActiveTab(which);
     if(which==='suppliers'){
       tabSuppliers && tabSuppliers.classList.add('active');
       suppliersPane.classList.add('hidden');   // עובדים עם פופ־אפ לבחירה
@@ -515,7 +511,7 @@ window.addEventListener('unhandledrejection', e=>{
       authMsg.className='muted';
       try {
         const email=(emailEl.value||'').trim();
-        const password=(passEl.value||'')
+        const password=(passEl.value||''); // לא עושים trim לסיסמה
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if(error){
           console.error('LOGIN ERROR:', error);
@@ -525,7 +521,11 @@ window.addEventListener('unhandledrejection', e=>{
         const { data: { session } } = await supabase.auth.getSession();
         currentUser=session?.user || data?.user || null;
         setAuthUI(!!currentUser, currentUser?.email);
-        setActiveTab('suppliers');
+
+        // שחזור טאב אחרון אם קיים, אחרת 'suppliers'
+        const savedTab = loadActiveTab() || 'suppliers';
+        setActiveTab(savedTab);
+
         await refreshAll();
         authMsg.textContent='מחובר'; authMsg.className='ok';
       } catch(err){
@@ -541,7 +541,7 @@ window.addEventListener('unhandledrejection', e=>{
       await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
     });
 
-    // Add supplier (אנטי-כפולים)
+    // Add supplier
     on($('#addSupplierBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingSupplier) return;
@@ -556,11 +556,11 @@ window.addEventListener('unhandledrejection', e=>{
           const s = suppliers.find(x => x && x.name === name);
           if (s) newId = s.id;
         }
-        if (newId) { activeSupplierId = newId; renderAllViews(); }
+        if (newId) { activeSupplierId = newId; saveActiveSupplier(newId); renderAllViews(); }
       } finally { setTimeout(()=>{ window.__addingSupplier = false; }, 300); }
     });
 
-    // Add invoice (אנטי-כפולים)
+    // Add invoice
     on($('#addInvoiceBtn'), 'click', async (e)=>{
       e.preventDefault(); e.stopPropagation();
       if (window.__addingInvoice) return;
@@ -600,7 +600,7 @@ window.addEventListener('unhandledrejection', e=>{
           const s = suppliers.find(x => x && x.name === name);
           if (s) newId = s.id;
         }
-        if (newId) { activeSupplierId = newId; renderAllViews(); closeSupplierPicker(); }
+        if (newId) { activeSupplierId = newId; saveActiveSupplier(newId); renderAllViews(); closeSupplierPicker(); }
       } finally { setTimeout(()=>{ window.__addingSupplier2 = false; }, 300); }
     });
 
@@ -608,11 +608,24 @@ window.addEventListener('unhandledrejection', e=>{
     const { data: { session } } = await supabase.auth.getSession();
     if(session?.user){
       currentUser=session.user; setAuthUI(true, currentUser.email);
-      setActiveTab('suppliers'); await refreshAll();
+
+      const savedTab = loadActiveTab() || 'suppliers';
+      setActiveTab(savedTab);
+
+      const savedSupplier = loadActiveSupplier();
+      if (savedSupplier) activeSupplierId = savedSupplier;
+
+      await refreshAll();
     }
     supabase.auth.onAuthStateChange(async (_e, sess)=>{
-      if(sess?.user){ currentUser=sess.user; setAuthUI(true, currentUser.email); setActiveTab('suppliers'); await refreshAll(); }
-      else { currentUser=null; setAuthUI(false); }
+      if(sess?.user){
+        currentUser=sess.user; setAuthUI(true, currentUser.email);
+        const savedTab = loadActiveTab() || 'suppliers';
+        setActiveTab(savedTab);
+        await refreshAll();
+      } else {
+        currentUser=null; setAuthUI(false);
+      }
     });
   }
 
@@ -647,6 +660,7 @@ window.addEventListener('unhandledrejection', e=>{
       btn.textContent = s.name || '(ללא שם)';
       btn.onclick = ()=>{
         activeSupplierId = s.id;
+        saveActiveSupplier(s.id);
         closeSupplierPicker();
         renderAllViews();
         window.scrollTo({ top: 0, behavior: 'smooth' });
