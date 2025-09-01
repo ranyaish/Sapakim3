@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>אפליקציית חישוב משכורות</title>
+<style>
+  :root{--bg:#0b1020;--card:#111a33;--ink:#e9edf7;--muted:#9fb0d9;--acc:#4f8cff;--ok:#12d27c;--warn:#ffb020;}
+  body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0f1d);color:var(--ink);font-family:Heebo,system-ui,Arial,sans-serif}
+  header{padding:18px 20px;border-bottom:1px solid #1e2a52;background:#0b1229;position:sticky;top:0;z-index:5}
+  h1{margin:0;font-size:20px}
+  .wrap{max-width:1100px;margin:22px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid #1e2a52;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+  .pad{padding:16px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .inp{background:#0e1733;border:1px solid #2a3b73;border-radius:12px;padding:10px 12px;color:var(--ink)}
+  .btn{background:var(--acc);color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  label{font-size:14px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #213066;padding:10px;text-align:right}
+  th{position:sticky;top:58px;background:#0e1733;font-weight:700}
+  tfoot td{font-weight:700}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+  .pill-ok{background:rgba(18,210,124,.12);color:#33e698;border:1px solid rgba(18,210,124,.35)}
+  .pill-warn{background:rgba(255,176,32,.12);color:#ffcc73;border:1px solid rgba(255,176,32,.35)}
+  .muted{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .sum{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px}
+  @media (max-width:900px){.sum{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:#0e1733;border:1px solid #2a3b73;border-radius:14px;padding:12px}
+  .stat h3{margin:0 0 6px 0;font-size:14px;color:var(--muted)}
+  .stat .v{font-size:18px;font-weight:700}
+  .foot{margin-top:10px;font-size:12px;color:var(--muted)}
+  .note{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><h1>אפליקציית חישוב משכורות</h1></header>
+<div class="wrap">
+  <div class="card pad">
+    <div class="row">
+      <div>
+        <label>קובץ CSV עם עמודות: יום, שעת הגעה, שעת עזיבה</label><br/>
+        <input id="file" type="file" accept=".csv" class="inp"/>
+      </div>
+      <div>
+        <label>שכר לשעה (₪)</label><br/>
+        <input id="rate" type="number" step="0.01" class="inp" value="35" />
+      </div>
+      <div>
+        <label>מפריד עמודות</label><br/>
+        <select id="sep" class="inp">
+          <option value=",">פסיק ,</option>
+          <option value=";">נקודה-פסיק ;</option>
+          <option value="tab">טאב</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button id="run" class="btn" disabled>חשב</button>
+      </div>
+    </div>
+    <div class="foot">פורמט תאריך-שעה צפוי: <code>DD/MM/YYYY HH:MM:SS</code>. המערכת מזהה משמרות שעוברות חצות.</div>
+  </div>
+
+  <div id="summary" class="sum" style="margin:16px 0"></div>
+
+  <div class="card">
+    <div class="pad">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0;font-size:18px">פירוט יומי</h2>
+        <span class="note">* “שבת 150%” נחתכת בין שבת 00:00 ועד שבת 17:00; שעות אלו אינן נספרות בתוך 9 השעות הרגילות.</span>
+      </div>
+    </div>
+    <div style="max-height:55vh;overflow:auto">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>תאריך</th><th>יום</th><th>התחלה</th><th>סיום</th>
+            <th>סה״כ שעות</th><th>רגיל 100%</th><th>נוספות 125%</th><th>שבת 150%</th>
+            <th>שעות משוקללות</th><th>שכר יום (₪)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const hebDays = ['א','ב','ג','ד','ה','ו','ש'];
+const dayFromHeb = h => hebDays.indexOf(h); // א=0 ... ש=6
+
+const $ = sel => document.querySelector(sel);
+const fileInput = $('#file'), runBtn = $('#run'), rateInp = $('#rate'), sepSel = $('#sep');
+fileInput.addEventListener('change', ()=> runBtn.disabled = !fileInput.files?.length);
+runBtn.addEventListener('click', handleRun);
+
+function parseCSV(text, sep) {
+  const s = sep==='tab' ? '\t' : sep;
+  const rows = text.replace(/\r/g,'').split('\n').filter(x=>x.trim()!=='').map(r=>{
+    // allow quoted fields
+    const out=[]; let cur=''; let q=false;
+    for (let i=0;i<r.length;i++){
+      const c=r[i];
+      if (c==='"'){ if (q && r[i+1]==='"'){cur+='"'; i++;} else q=!q; }
+      else if (c===s && !q){ out.push(cur); cur=''; }
+      else cur+=c;
+    }
+    out.push(cur);
+    return out.map(x=>x.trim());
+  });
+  return rows;
+}
+
+function parseDT(s){ // "DD/MM/YYYY HH:MM:SS"
+  if(!s) return null;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(!m) return null;
+  const [_,d,mo,y,h,mi,se] = m.map(Number);
+  return new Date(y, mo-1, d, h, mi, se||0);
+}
+function fmtTime(d){ return d.toTimeString().slice(0,8); }
+function fmtDate(d){ return d.toLocaleDateString('he-IL'); }
+function hours(ms){ return ms/36e5; }
+function clamp(x){ return Math.round(x*1000)/1000; } // תצוגה נעימה
+
+// מחזיר כמה שעות מהקטע [t0,t1) נופלות בשבת-150 (שבת 00:00–17:00)
+function shabbatHoursBetween(t0, t1){
+  let h150 = 0;
+  const stepDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()+1);
+  let cur = new Date(t0);
+  while (cur < t1){
+    const dayStart = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate());
+    const dow = dayStart.getDay(); // 0=א, ..., 6=ש
+    const nextDay = stepDay(dayStart);
+    if (dow === 6){ // שבת
+      const segStart = new Date(dayStart); // 00:00
+      const segEnd = new Date(dayStart); segEnd.setHours(17,0,0,0); // 17:00
+      const a = new Date(Math.max(t0, segStart));
+      const b = new Date(Math.min(t1, segEnd));
+      if (a < b) h150 += hours(b - a);
+    }
+    cur = nextDay;
+  }
+  return h150;
+}
+
+function splitShift(start, end){
+  // אם הסיום לפני ההתחלה – נניח עברנו חצות ונוסיף יממה
+  if (end <= start) end = new Date(end.getTime() + 24*3600*1000);
+
+  const total = hours(end - start);
+  const sh150 = shabbatHoursBetween(start, end);
+
+  // שעות שבת לא ייכנסו לתקרת 9 השעות הרגילות:
+  const nonShabbat = Math.max(total - sh150, 0);
+  const reg100 = Math.min(nonShabbat, 9);
+  const ot125  = Math.max(nonShabbat - 9, 0);
+
+  const weighted = reg100 + ot125*1.25 + sh150*1.5;
+  return { total, reg100, ot125, sh150, weighted, end };
+}
+
+async function handleRun(){
+  const file = fileInput.files[0];
+  const text = await file.text();
+  const rows = parseCSV(text, sepSel.value);
+
+  // ננסה לזהות אינדקסים מהכותרת
+  const header = rows[0].map(h=>h.replace(/\s/g,''));
+  const idxDay = header.findIndex(h=>/^(יום)$/.test(h));
+  const idxIn  = header.findIndex(h=>/^שעתהגעה$/.test(h));
+  const idxOut = header.findIndex(h=>/^שעתעזיבה$/.test(h));
+
+  if (idxDay<0 || idxIn<0 || idxOut<0){
+    alert('לא נמצאו כותרות: יום / שעת הגעה / שעת עזיבה. ודא שה-CSV מכיל אותן בדיוק.');
+    return;
+  }
+
+  const rate = parseFloat(rateInp.value||0) || 0;
+
+  const body = $('#tbl tbody'); body.innerHTML='';
+  const foot = $('#tbl tfoot'); foot.innerHTML='';
+  const monthSum = { total:0, reg100:0, ot125:0, sh150:0, weighted:0, pay:0 };
+
+  // נעבד כל שורה (מדלגים על הכותרת)
+  for (let i=1;i<rows.length;i++){
+    const r = rows[i]; if (!r || r.length<3) continue;
+    const dayHeb = r[idxDay];
+    const tIn  = parseDT(r[idxIn]);
+    const tOut = parseDT(r[idxOut]);
+    if (!tIn || !tOut) continue;
+
+    const seg = splitShift(tIn, tOut);
+    const pay = seg.weighted * rate;
+
+    monthSum.total    += seg.total;
+    monthSum.reg100   += seg.reg100;
+    monthSum.ot125    += seg.ot125;
+    monthSum.sh150    += seg.sh150;
+    monthSum.weighted += seg.weighted;
+    monthSum.pay      += pay;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(tIn)}</td>
+      <td>${dayHeb}</td>
+      <td>${fmtTime(tIn)}</td>
+      <td>${fmtTime(seg.end)}</td>
+      <td>${seg.total.toFixed(2)}</td>
+      <td>${seg.reg100.toFixed(2)}</td>
+      <td>${seg.ot125.toFixed(2)}</td>
+      <td>${seg.sh150.toFixed(2)}</td>
+      <td>${seg.weighted.toFixed(2)}</td>
+      <td>${pay.toFixed(2)}</td>
+    `;
+    body.appendChild(tr);
+  }
+
+  // סיכום תחתון
+  const trF = document.createElement('tr');
+  trF.innerHTML = `
+    <td colspan="4" style="text-align:left;font-weight:700">סיכום חודשי</td>
+    <td>${monthSum.total.toFixed(2)}</td>
+    <td>${monthSum.reg100.toFixed(2)}</td>
+    <td>${monthSum.ot125.toFixed(2)}</td>
+    <td>${monthSum.sh150.toFixed(2)}</td>
+    <td>${monthSum.weighted.toFixed(2)}</td>
+    <td>${monthSum.pay.toFixed(2)}</td>
+  `;
+  foot.appendChild(trF);
+
+  // כרטיסיות סיכום בראש הדף
+  const S = $('#summary');
+  S.innerHTML = `
+    <div class="stat"><h3>סה״כ שעות</h3><div class="v">${monthSum.total.toFixed(2)}</div></div>
+    <div class="stat"><h3>רגיל 100%</h3><div class="v">${monthSum.reg100.toFixed(2)}</div></div>
+    <div class="stat"><h3>נוספות 125%</h3><div class="v">${monthSum.ot125.toFixed(2)}</div></div>
+    <div class="stat"><h3>שבת 150%</h3><div class="v">${monthSum.sh150.toFixed(2)}</div></div>
+    <div class="stat"><h3>שעות משוקללות</h3><div class="v">${monthSum.weighted.toFixed(2)}</div></div>
+    <div class="stat"><h3>שכר חודשי (₪)</h3><div class="v">${monthSum.pay.toFixed(2)}</div></div>
+  `;
+}
+</script>
+</body>
+</html>
