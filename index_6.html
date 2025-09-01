@@ -49,12 +49,10 @@ window.addEventListener('unhandledrejection', e=>{
   .badge { padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#fff }
   .ok { color:#047857 } .err { color:#b91c1c }
 
-  /* Tabs */
   .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); padding:0 16px }
   .tab-btn { border:none; background:transparent; padding:12px 10px; cursor:pointer; border-bottom:2px solid transparent; font-weight:600 }
   .tab-btn.active { border-color:var(--accent); color:var(--accent) }
 
-  /* Modal: בחירת ספק */
   .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40; }
   .modal { position:fixed; left:0; right:0; top:10%; margin:auto; max-width:560px; background:#fff;
            border:1px solid var(--border); border-radius:14px; padding:14px; z-index:50; }
@@ -62,7 +60,6 @@ window.addEventListener('unhandledrejection', e=>{
   .modal .list { max-height:50vh; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:8px }
   .btn-close { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
 
-  /* טבלת חשבוניות – צ’קבוקס ותאריך קטן לידו */
   .paid-cell { display:flex; align-items:center; gap:6px; justify-content:flex-start }
   .paid-cell small { color:var(--muted) }
 </style>
@@ -71,7 +68,6 @@ window.addEventListener('unhandledrejection', e=>{
   <div class="row">
     <h1>ניהול ספקים</h1>
     <span class="badge">v1-stable</span>
-    <!-- קישור לסיכום חודשי -->
     <a class="btn small" href="payments.html" style="text-decoration:none">סיכום חודשי לספקים</a>
   </div>
   <div class="row">
@@ -84,14 +80,12 @@ window.addEventListener('unhandledrejection', e=>{
   </div>
 </header>
 
-<!-- NAV TABS -->
 <div class="tabs hidden" id="navTabs">
   <button class="tab-btn active" id="tabSuppliers">ספקים</button>
   <button class="tab-btn" id="tabMonthly">סיכום חודשי</button>
 </div>
 
 <main id="app" class="hidden">
-  <!-- טאב ספקים -->
   <aside class="card" id="suppliersPane">
     <h3 style="margin:0 0 10px">ספקים</h3>
     <div class="row">
@@ -139,7 +133,6 @@ window.addEventListener('unhandledrejection', e=>{
     </div>
   </section>
 
-  <!-- טאב סיכום חודשי -->
   <section class="card hidden" id="monthlyPane" style="grid-column:1 / -1">
     <div class="row" style="justify-content:space-between;align-items:center">
       <h3 style="margin:0">סיכום חודשי לכל הספקים</h3>
@@ -158,7 +151,6 @@ window.addEventListener('unhandledrejection', e=>{
   </section>
 </main>
 
-<!-- פופ־אפ בחירת ספק -->
 <div id="modalBackdrop" class="modal-backdrop hidden"></div>
 <div id="supplierModal" class="modal hidden" role="dialog" aria-modal="true">
   <div class="row" style="justify-content:space-between;align-items:center">
@@ -212,16 +204,13 @@ window.addEventListener('unhandledrejection', e=>{
   const supplierName2 = $('#supplierName2');
   const addSupplierBtn2 = $('#addSupplierBtn2');
 
-  // ===== שמירת מצב ב-localStorage =====
   const LS_SUPPLIER_KEY = 'activeSupplierId';
   const LS_TAB_KEY = 'lastActiveTab';
-
   function saveActiveSupplier(id){ try { localStorage.setItem(LS_SUPPLIER_KEY, id || ''); } catch(_) {} }
   function loadActiveSupplier(){ try { return localStorage.getItem(LS_SUPPLIER_KEY) || null; } catch(_) { return null; } }
   function saveActiveTab(tab){ try { localStorage.setItem(LS_TAB_KEY, tab); } catch(_) {} }
   function loadActiveTab(){ try { return localStorage.getItem(LS_TAB_KEY) || null; } catch(_) { return null; } }
 
-  // ===== DB =====
   async function loadSuppliers(){ const { data } = await supabase.from('suppliers').select('*').order('created_at',{ascending:false}); return data||[]; }
   async function loadInvoicesForMonth(isoStart, isoEnd){
     const { data } = await supabase.from('invoices').select('*').gte('date', isoStart).lt('date', isoEnd);
@@ -233,10 +222,10 @@ window.addEventListener('unhandledrejection', e=>{
   async function addInvoice(supplier_id,date,amount,notes){ await supabase.from('invoices').insert({supplier_id,date,amount,notes}); }
   async function deleteInvoice(id){ await supabase.from('invoices').delete().eq('id',id); }
 
-  // עדכון "שולם"
+  // עדכון "שולם": שומרים ISO ל-DB, מציגים מקומי
   async function setInvoicePaid(inv, checked){
-    const today = new Date().toLocaleDateString('en-GB'); // dd/mm/yyyy מקומי
-    const payload = { paid: checked, paid_at: checked ? today : null };
+    const isoToday = new Date().toISOString().slice(0,10); // YYYY-MM-DD (DB)
+    const payload = { paid: checked, paid_at: checked ? isoToday : null };
 
     const prevPaid = inv.paid, prevPaidAt = inv.paid_at;
     inv.paid = checked;
@@ -252,7 +241,6 @@ window.addEventListener('unhandledrejection', e=>{
     }
   }
 
-  // ===== RENDER =====
   function renderSuppliers(){
     supplierList.innerHTML='';
     suppliers.forEach(s=>{
@@ -269,15 +257,310 @@ window.addEventListener('unhandledrejection', e=>{
   function renderLedger(){
     if(!activeSupplierId){ emptyState.classList.remove('hidden'); ledger.classList.add('hidden'); return; }
     emptyState.classList.add('hidden'); ledger.classList.remove('hidden');
-    const arr = window.__allInvoices.filter(i=>i.supplier_id===activeSupplierId).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
+    const s = suppliers.find(x=>x.id===activeSupplierId);
+    ledgerTitle.textContent='כרטסת: '+(s?.name||'');
+
+    const arr = window.__allInvoices
+      .filter(i=>i.supplier_id===activeSupplierId)
+      .slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
+
     const total = arr.reduce((t,i)=> t + (!i.paid ? (Number(i.amount)||0) : 0), 0);
     grandTotalEl.textContent = fmt(total);
 
     invoiceTableBody.innerHTML='';
-    arr.forEach(i=>{
-      const tr=document.createElement('tr');
-      const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
-      const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
-      const td3=document.createElement('td'); td3.textContent=i.notes||'';
+    if(arr.length===0){
+      const tr=document.createElement('tr'); const td=document.createElement('td');
+      td.colSpan=5; td.className='muted'; td.style.textAlign='center'; td.textContent='אין רשומות';
+      tr.appendChild(td); invoiceTableBody.appendChild(tr);
+    } else {
+      arr.forEach(i=>{
+        const tr=document.createElement('tr');
+        const td1=document.createElement('td'); td1.textContent=new Date(i.date).toLocaleDateString('he-IL');
+        const td2=document.createElement('td'); td2.textContent=fmt(i.amount);
+        const td3=document.createElement('td'); td3.textContent=i.notes||'';
 
-      const tdPaid=document.create
+        const tdPaid=document.createElement('td');
+        const wrap=document.createElement('div'); wrap.className='paid-cell';
+        const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!i.paid;
+        const lbl=document.createElement('small');
+        lbl.textContent = (i.paid && i.paid_at) ? new Date(i.paid_at).toLocaleDateString('en-GB') : '';
+        cb.onchange = async (e)=>{
+          const checked = e.target.checked;
+          lbl.textContent = checked ? new Date().toLocaleDateString('en-GB') : '';
+          await setInvoicePaid(i, checked);
+        };
+        wrap.appendChild(cb); wrap.appendChild(lbl); tdPaid.appendChild(wrap);
+
+        const td4=document.createElement('td');
+        const del=document.createElement('button'); del.className='btn small'; del.textContent='מחק';
+        del.onclick=async()=>{
+          if(confirm('מאשר למחוק את החשבונית?')){
+            await deleteInvoice(i.id);
+            await refreshAll();
+          }
+        };
+        td4.appendChild(del);
+
+        [td1,td2,td3,tdPaid,td4].forEach(x=>tr.appendChild(x));
+        invoiceTableBody.appendChild(tr);
+      });
+    }
+  }
+
+  function monthStartEnd(ym){
+    const [yy, mm] = (ym || '').split('-').map(Number);
+    const toISO = d => d.toISOString().slice(0,10);
+    if (!yy || !mm) {
+      const now = new Date();
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 1));
+      return { startISO: toISO(start), endISO: toISO(end) };
+    }
+    const start = new Date(Date.UTC(yy, mm-1, 1));
+    const end   = new Date(Date.UTC(yy, mm, 1));
+    return { startISO: toISO(start), endISO: toISO(end) };
+  }
+
+  async function renderMonthly(){
+    if(!monthPicker.value){
+      const now = new Date();
+      monthPicker.value = now.toISOString().slice(0,7);
+    }
+    const { startISO, endISO } = monthStartEnd(monthPicker.value);
+
+    const monthInvoices = await loadInvoicesForMonth(startISO, endISO);
+    const totalsBySupplier = {};
+    monthInvoices.forEach(inv=>{
+      if (inv.paid) return; // סופרים רק לא-שולם
+      const sid = inv.supplier_id;
+      totalsBySupplier[sid] = (totalsBySupplier[sid]||0) + (Number(inv.amount)||0);
+    });
+
+    monthlyTableBody.innerHTML = '';
+    suppliers.forEach(s=>{
+      const total = totalsBySupplier[s.id] || 0;
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td');
+      const tdSum  = document.createElement('td');
+
+      const link = document.createElement('button');
+      link.className = 'btn small';
+      link.textContent = s.name;
+      link.onclick = ()=>{
+        setActiveTab('suppliers');
+        activeSupplierId = s.id;
+        saveActiveSupplier(s.id);
+        renderAllViews();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      tdName.appendChild(link);
+      tdSum.textContent = fmt(total);
+      tr.appendChild(tdName); tr.appendChild(tdSum);
+      monthlyTableBody.appendChild(tr);
+    });
+
+    const grand = Object.values(totalsBySupplier).reduce((a,b)=> a + (Number(b)||0), 0);
+    const trSum  = document.createElement('tr');
+    trSum.innerHTML = '<td><b>סה״כ כל הספקים</b></td><td><b>'+fmt(grand)+'</b></td>';
+    monthlyTableBody.appendChild(trSum);
+  }
+
+  function renderAllViews(){
+    renderSuppliers();
+    renderLedger();
+    if(!monthlyPane.classList.contains('hidden')) renderMonthly();
+  }
+
+  async function refreshAll(){
+    suppliers = await loadSuppliers();
+    window.__allInvoices = await loadInvoicesAll();
+    if (!activeSupplierId) {
+      const saved = loadActiveSupplier();
+      if (saved && suppliers.some(s=>s.id===saved)) activeSupplierId = saved;
+    }
+    if(suppliers.length && !activeSupplierId) activeSupplierId = suppliers[0].id;
+    renderAllViews();
+  }
+
+  function setActiveTab(which){
+    [tabSuppliers, tabMonthly].forEach(b=>b && b.classList.remove('active'));
+    saveActiveTab(which);
+    if(which==='suppliers'){
+      tabSuppliers && tabSuppliers.classList.add('active');
+      suppliersPane.classList.add('hidden');
+      ledgerPane.classList.remove('hidden');
+      monthlyPane.classList.add('hidden');
+    } else if(which==='monthly'){
+      tabMonthly && tabMonthly.classList.add('active');
+      suppliersPane.classList.add('hidden');
+      ledgerPane.classList.add('hidden');
+      monthlyPane.classList.remove('hidden');
+      renderMonthly();
+    }
+  }
+
+  async function boot(){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+
+    on(loginBtn, 'click', async (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.__loggingIn) return;
+      window.__loggingIn = true;
+
+      authMsg.textContent='מתחבר...';
+      authMsg.className='muted';
+      try {
+        const email=(emailEl.value||'').trim();
+        const password=(passEl.value||''); // לא עושים trim לסיסמה
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if(error){
+          authMsg.textContent='שגיאה: '+(error.message||'Login failed'); authMsg.className='err';
+          return;
+        }
+        const { data: { session } } = await supabase.auth.getSession();
+        currentUser=session?.user || data?.user || null;
+        setAuthUI(!!currentUser, currentUser?.email);
+
+        const savedTab = loadActiveTab() || 'suppliers';
+        setActiveTab(savedTab);
+
+        await refreshAll();
+        authMsg.textContent='מחובר'; authMsg.className='ok';
+      } catch(err){
+        authMsg.textContent='שגיאה מערכתית: '+(err?.message||err); authMsg.className='err';
+      } finally {
+        setTimeout(()=>{ window.__loggingIn = false; }, 300);
+      }
+    });
+
+    on(logoutBtn, 'click', async ()=>{
+      await supabase.auth.signOut(); currentUser=null; setAuthUI(false);
+    });
+
+    on($('#addSupplierBtn'), 'click', async (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      if (window.__addingSupplier) return;
+      window.__addingSupplier = true;
+      try {
+        const name = (supplierName.value || '').trim();
+        if (!name) return;
+        let newId = await addSupplier(name);
+        supplierName.value = '';
+        await refreshAll();
+        if (!newId && Array.isArray(suppliers)) {
+          const s = suppliers.find(x => x && x.name === name);
+          if (s) newId = s.id;
+        }
+        if (newId) { activeSupplierId = newId; saveActiveSupplier(newId); renderAllViews(); }
+      } finally { setTimeout(()=>{ window.__addingSupplier = false; }, 300); }
+    });
+
+    on($('#addInvoiceBtn'), 'click', async (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      if (window.__addingInvoice) return;
+      window.__addingInvoice = true;
+      try {
+        if(!activeSupplierId) return;
+        const date = invDate.value || new Date().toISOString().slice(0,10);
+        const amount = parseFloat(invAmount.value || '0');
+        const notes = invNotes.value || '';
+        await addInvoice(activeSupplierId, date, amount, notes);
+        invAmount.value = ''; invNotes.value = '';
+        await refreshAll();
+      } finally { setTimeout(()=>{ window.__addingInvoice = false; }, 300); }
+    });
+
+    on(tabSuppliers,'click', ()=> setActiveTab('suppliers'));
+    on(tabMonthly,'click',  ()=> setActiveTab('monthly'));
+    on(refreshMonthlyBtn,'click', renderMonthly);
+    on(monthPicker,'change', renderMonthly);
+
+    on(openSupplierPickerBtn,'click', openSupplierPicker);
+    on(closeSupplierPickerBtn,'click', closeSupplierPicker);
+    on(modalBackdrop,'click', closeSupplierPicker);
+    on(addSupplierBtn2, 'click', async (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      if (window.__addingSupplier2) return;
+      window.__addingSupplier2 = true;
+      try {
+        const name = (supplierName2.value || '').trim();
+        if (!name) return;
+        let newId = await addSupplier(name);
+        supplierName2.value = '';
+        await refreshAll();
+        if (!newId && Array.isArray(suppliers)) {
+          const s = suppliers.find(x => x && x.name === name);
+          if (s) newId = s.id;
+        }
+        if (newId) { activeSupplierId = newId; saveActiveSupplier(newId); renderAllViews(); closeSupplierPicker(); }
+      } finally { setTimeout(()=>{ window.__addingSupplier2 = false; }, 300); }
+    });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if(session?.user){
+      currentUser=session.user; setAuthUI(true, currentUser.email);
+      const savedTab = loadActiveTab() || 'suppliers';
+      setActiveTab(savedTab);
+      const savedSupplier = loadActiveSupplier();
+      if (savedSupplier) activeSupplierId = savedSupplier;
+      await refreshAll();
+    }
+    supabase.auth.onAuthStateChange(async (_e, sess)=>{
+      if(sess?.user){
+        currentUser=sess.user; setAuthUI(true, currentUser.email);
+        const savedTab = loadActiveTab() || 'suppliers';
+        setActiveTab(savedTab);
+        await refreshAll();
+      } else {
+        currentUser=null; setAuthUI(false);
+      }
+    });
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+  function openSupplierPicker(){
+    renderSupplierPicker();
+    modalBackdrop.classList.remove('hidden');
+    supplierModal.classList.remove('hidden');
+  }
+  function closeSupplierPicker(){
+    modalBackdrop.classList.add('hidden');
+    supplierModal.classList.add('hidden');
+  }
+  function renderSupplierPicker(){
+    supplierListModal.innerHTML = '';
+    if (!Array.isArray(suppliers) || !suppliers.length) {
+      const li = document.createElement('li');
+      li.className = 'muted';
+      li.textContent = 'אין ספקים עדיין. ניתן להוסיף בשדה למעלה.';
+      supplierListModal.appendChild(li);
+      return;
+    }
+    const list = suppliers.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
+    list.forEach(s=>{
+      const li = document.createElement('li');
+      const row = document.createElement('div');
+      row.className = 'supplier-row';
+      const btn = document.createElement('button');
+      btn.className = 'supplier-name';
+      btn.textContent = s.name || '(ללא שם)';
+      btn.onclick = ()=>{
+        activeSupplierId = s.id;
+        saveActiveSupplier(s.id);
+        closeSupplierPicker();
+        renderAllViews();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+      row.appendChild(btn);
+      li.appendChild(row);
+      supplierListModal.appendChild(li);
+    });
+  }
+})();
+</script>
+</html>
