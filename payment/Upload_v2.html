@@ -1,5 +1,4 @@
 <!doctype html>
-
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
@@ -20,6 +19,8 @@
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
     .inp{background:#0e1733;border:1px solid #2a3b73;border-radius:12px;padding:10px 12px;color:var(--ink)}
     .btn{background:var(--acc);color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
+    .btn.alt{background:#2a3b73}
+    .btn.warn{background:#ff5555}
     .btn:disabled{opacity:.6;cursor:not-allowed}
     label{font-size:14px;color:var(--muted)}
     table{width:100%;border-collapse:collapse}
@@ -65,9 +66,17 @@
         <button id="exportDaily" class="btn" disabled>ייצוא פירוט יומי (CSV)</button>
         <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (CSV)</button>
       </div>
+      <div class="flex">
+        <button id="exportJSON" class="btn alt" disabled>ייצוא JSON (סשן)</button>
+        <input id="importJSONFile" type="file" accept=".json,application/json" class="inp" style="display:none" />
+        <button id="importJSON" class="btn alt">טעינת JSON</button>
+        <button id="clearSession" class="btn warn">ניקוי סשן</button>
+      </div>
     </div>
     <div class="foot">חוקי חישוב: שבת <b>08:00–17:00</b> = 150% (אם משמרת מתחילה בשבת <b>מ-16:00 ומעלה</b> – לא נספרות שעות שבת). נוספות יומיות: מצב A (9/11 → 100%/125%/150%) או מצב B (ללא נוספות).</div>
-  </div>  <div class="grid" style="margin-top:16px">
+  </div>
+
+  <div class="grid" style="margin-top:16px">
     <div class="card">
       <div class="stickybar">
         <div class="toolbar">
@@ -87,33 +96,36 @@
           <tbody></tbody>
         </table>
       </div>
-    </div><div class="card">
-  <div class="stickybar">
-    <div class="toolbar">
-      <span class="pill">סיכום חודשי</span>
-      <span class="muted">מתעדכן לפי ההגדרות</span>
+    </div>
+
+    <div class="card">
+      <div class="stickybar">
+        <div class="toolbar">
+          <span class="pill">סיכום חודשי</span>
+          <span class="muted">מתעדכן לפי ההגדרות</span>
+        </div>
+      </div>
+      <div class="pad scroll">
+        <table id="summaryTable">
+          <thead>
+            <tr>
+              <th>עובד</th>
+              <th>סה"כ שעות</th>
+              <th>רגיל 100%</th>
+              <th>נוספות 125%</th>
+              <th>נוספות 150%</th>
+              <th>שבת 150%</th>
+              <th>שעות משוקללות</th>
+              <th>שכר חודשי (₪)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
-  <div class="pad scroll">
-    <table id="summaryTable">
-      <thead>
-        <tr>
-          <th>עובד</th>
-          <th>סה"כ שעות</th>
-          <th>רגיל 100%</th>
-          <th>נוספות 125%</th>
-          <th>נוספות 150%</th>
-          <th>שבת 150%</th>
-          <th>שעות משוקללות</th>
-          <th>שכר חודשי (₪)</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-</div>
 
-  </div>  <div class="card" style="margin-top:16px">
+  <div class="card" style="margin-top:16px">
     <div class="stickybar">
       <div class="toolbar">
         <span class="pill">פירוט יומי</span>
@@ -139,7 +151,9 @@
       </table>
     </div>
   </div>
-</div><script>
+</div>
+
+<script>
 // ===================== Utils =====================
 const $ = sel => document.querySelector(sel);
 const fmt2 = n => (Math.round(n*100)/100).toFixed(2);
@@ -157,6 +171,7 @@ function parseHebDateTime(s){
   if(m){ const d=+m[1], mo=+m[2], y=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0); return new Date(y,mo-1,d,h,mi,se); }
   const d = new Date(s); return isNaN(d) ? null : d; // fallback
 }
+const STORAGE_KEY = 'payrollSessionV1';
 
 // ===================== Parsing workbook =====================
 async function readWorkbook(file){
@@ -273,6 +288,73 @@ let punches = []; // raw shifts
 let perDayBase = []; // base per-day rows
 let empConfig = {}; // { emp: {mode:'A'|'B', rate:number} }
 
+// ======= NEW: Session save/load =======
+function serializeSession(){
+  const selEmp = $('#employeeFilter')?.value || 'ALL';
+  // store punches as ISO
+  const punchesISO = punches.map(p=> ({
+    employee: p.employee,
+    dtInISO: new Date(p.dtIn).toISOString(),
+    dtOutISO: new Date(p.dtOut).toISOString()
+  }));
+  return {
+    __kind: "payroll-session",
+    version: 1,
+    savedAt: new Date().toISOString(),
+    empConfig,
+    punches: punchesISO,
+    ui: { employeeFilter: selEmp }
+  };
+}
+
+function reviveSession(obj){
+  if(!obj || obj.__kind!=='payroll-session' || !Array.isArray(obj.punches)) throw new Error('קובץ JSON אינו בפורמט הנכון');
+  // revive punches back to Date
+  punches = obj.punches.map(p=> ({
+    employee: p.employee,
+    dtIn: new Date(p.dtInISO),
+    dtOut: new Date(p.dtOutISO)
+  }));
+  empConfig = obj.empConfig || {};
+  perDayBase = buildDailyBase(punches);
+  renderEmployeeConfig();
+  updateOutputs();
+  const fsel = $('#employeeFilter');
+  if(obj.ui?.employeeFilter && fsel.querySelector(`option[value="${CSS.escape(obj.ui.employeeFilter)}"]`)){
+    fsel.value = obj.ui.employeeFilter;
+    updateOutputs();
+  }
+  saveLocal(); // keep in localStorage as well
+}
+
+function downloadFile(name, content, mime='text/plain;charset=utf-8;'){
+  const blob = new Blob([content], {type: mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function saveLocal(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeSession())); }
+  catch(e){ console.warn('localStorage save failed', e); }
+}
+
+function loadLocalIfAny(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const obj = JSON.parse(raw);
+    reviveSession(obj);
+  }catch(e){ console.warn('localStorage load failed', e); }
+}
+
+function clearLocal(){
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+}
+
+// ===================== Rendering =====================
 function renderEmployeeConfig(){
   const tbody = $('#empTable tbody'); tbody.innerHTML='';
   const emps = [...new Set(perDayBase.map(r=>r.employee))].sort((a,b)=>a.localeCompare(b));
@@ -299,10 +381,10 @@ function renderEmployeeConfig(){
   for(const inp of tbody.querySelectorAll('.rateInp')){ inp.value = empConfig[inp.dataset.emp].rate; inp.addEventListener('input', onConfigChange); }
 
   // Employee filter
-  const fsel = $('#employeeFilter'); fsel.innerHTML = '<option value="ALL">כל העובדים</option>' + emps.map(e=>`<option>${e}</option>`).join(''); fsel.disabled = false; fsel.onchange = updateOutputs;
+  const fsel = $('#employeeFilter'); fsel.innerHTML = '<option value="ALL">כל העובדים</option>' + emps.map(e=>`<option>${e}</option>`).join(''); fsel.disabled = false; fsel.onchange = ()=>{ updateOutputs(); saveLocal(); };
 
-  // Enable exports
-  $('#exportDaily').disabled = false; $('#exportSummary').disabled = false;
+  // Enable exports (CSV & JSON)
+  $('#exportDaily').disabled = false; $('#exportSummary').disabled = false; $('#exportJSON').disabled = false;
 }
 
 function onConfigChange(ev){
@@ -310,6 +392,7 @@ function onConfigChange(ev){
   if(el.classList.contains('modeSel')) empConfig[emp].mode = el.value;
   if(el.classList.contains('rateInp')) empConfig[emp].rate = +el.value || 0;
   updateOutputs();
+  saveLocal();
 }
 
 function updateOutputs(){
@@ -368,8 +451,7 @@ function toCSV(rows, headers){
   return lines.join('\n');
 }
 function download(name, text){
-  const blob = new Blob([text], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  downloadFile(name, text, 'text/csv;charset=utf-8;');
 }
 $('#exportDaily').onclick = ()=>{
   const perDay = applyOvertime(perDayBase, transformConfigToMode(empConfig)).map(r=> ({
@@ -386,6 +468,38 @@ $('#exportSummary').onclick = ()=>{
   download('summary.csv', csv);
 };
 
+// ===================== JSON Export/Import =====================
+$('#exportJSON').onclick = ()=>{
+  try{
+    const data = serializeSession();
+    downloadFile(`payroll_session_${(new Date).toISOString().slice(0,10)}.json`, JSON.stringify(data, null, 2), 'application/json');
+  }catch(e){
+    alert('שגיאה בייצוא הסשן'); console.error(e);
+  }
+};
+
+$('#importJSON').onclick = ()=> $('#importJSONFile').click();
+$('#importJSONFile').addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0]; if(!f) return;
+  try{
+    const txt = await f.text();
+    const obj = JSON.parse(txt);
+    reviveSession(obj);
+  }catch(e){
+    alert('שגיאה בטעינת JSON. ודא שהקובץ בפורמט התקין.'); console.error(e);
+  }finally{
+    ev.target.value = ''; // reset
+  }
+});
+
+$('#clearSession').onclick = ()=>{
+  if(confirm('לנקות סשן מקומי? (לא ימחק קבצי JSON שהורדו)')){
+    clearLocal();
+    // לא מוחקים נתונים חיים כדי שלא תאבד עבודה בטעות
+    alert('ניקה זיכרון מקומי. לשחזור אוטומטי בעתיד יש לשמור מחדש.');
+  }
+};
+
 // ===================== File Handling =====================
 $('#file').addEventListener('change', async (ev)=>{
   const file = ev.target.files[0]; if(!file) return;
@@ -396,7 +510,14 @@ $('#file').addEventListener('change', async (ev)=>{
     perDayBase = buildDailyBase(punches);
     renderEmployeeConfig();
     updateOutputs();
+    saveLocal();
   }catch(err){ console.error(err); alert('שגיאה בקריאת הקובץ'); }
 });
-</script></body>
+
+// ===================== Boot: try restore from localStorage =====================
+window.addEventListener('DOMContentLoaded', ()=>{
+  loadLocalIfAny(); // אם יש — משחזר. אם אין, יישאר ריק עד טעינת קובץ
+});
+</script>
+</body>
 </html>
