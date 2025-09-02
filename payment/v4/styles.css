@@ -130,8 +130,19 @@ label{font-size:14px;color:#334b68}
   min-width: 1100px; /* תוכל להגדיל/להקטין לפי כמות העמודות */
 }
 
-/* (לא חובה) שמור את הכותרת לא דביקה כדי שלא תכסה שמות עובדים */
-#summaryTable thead th {
-  position: static;
-  top: auto;
+/* כותרות טבלה דביקות */
+thead th{
+  position: sticky;
+  background:#f7faff;
+  font-weight:800;
+  z-index:2;
 }
+
+/* בעמוד הראשי: ראש הטבלה צריך לפצות על הגובה של ה-header */
+.wrap .hscroll thead th{ top:64px; }
+
+/* בתוך המודל: הראש צמוד לראש אזור הגלילה של המודל */
+.modal .hscroll thead th{ top:0; }
+
+/* כשמודל פתוח – אל תגלול את הגוף, כדי שטבלאות רקע לא "יצופו" */
+body.modal-open{ overflow:hidden; }
