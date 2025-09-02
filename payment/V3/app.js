@@ -324,35 +324,63 @@ function exportSummary(){
     ot_150:fmt2(r.ot150),
     shabbat_150:fmt2(r.shabbat150),
     weighted_hours:fmt2(r.weighted),
-    base_pay:fmt2(r.basePay),
-    travel:fmt2(r.travel||0),
-    tips:fmt2(r.tips||0),
-    bonus:fmt2(r.bonus||0),
-    advance:fmt2(r.advance||0),
-    final_pay:fmt2(r.finalPay||0)
-  }));
+// ===================== XLSX helpers (RTL + Bold header + zebra rows) =====================
+async function exportXlsx(filename, headersHeb, rowsArray) {
+  const X = window.XlsxPopulate;
+  if (!X) { alert('XlsxPopulate לא נטען'); return; }
 
-  const headersHeb = [
-    'עובד','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר בסיס','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'
-  ];
+  const wb = await X.fromBlankAsync();
+  const sheet = wb.sheet(0).name("Export");
 
-  const rowsForXlsx = rows.map(r => ({
-    'עובד': r.employee,
-    'סה"כ שעות': r.total,
-    'רגיל 100%': r.reg_100,
-    'נוספות 125%': r.ot_125,
-    'נוספות 150%': r.ot_150,
-    'שבת 150%': r.shabbat_150,
-    'שעות משוקללות': r.weighted_hours,
-    'שכר בסיס': r.base_pay,
-    'נסיעות': r.travel,
-    'טיפים': r.tips,
-    'תוספת שכר': r.bonus,
-    'החזר מקדמה': r.advance,
-    'שכר ברוטו': r.final_pay
-  }));
+  // נסה להגדיר מבט מימין לשמאל (RTL) אם הספרייה תומכת
+  try {
+    if (typeof sheet.rightToLeft === 'function') {
+      sheet.rightToLeft(true);
+    } else if (sheet._sheet) {
+      // ניסיון לכפות RTL ברמת ה־XML הפנימי (OpenXML)
+      sheet._sheet.sheetViews = sheet._sheet.sheetViews || [{ workbookViewId: 0 }];
+      sheet._sheet.sheetViews[0].rightToLeft = 1;
+    }
+  } catch (_) { /* מתעלמים אם לא ניתן בדפדפן */ }
 
-  exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
+  // כתיבת כותרת (Bold)
+  sheet.cell(1, 1).value([headersHeb]);
+  sheet.row(1).style({ bold: true });
+
+  // כתיבת נתונים
+  if (rowsArray.length) {
+    const dataMatrix = rowsArray.map(row => headersHeb.map(h => row[h]));
+    sheet.cell(2, 1).value(dataMatrix);
+  }
+
+  // יישור לימין + רוחב אוטומטי
+  const used = sheet.usedRange();
+  if (used) used.style({ horizontalAlignment: "right" });
+
+  headersHeb.forEach((h, idx) => {
+    let maxLen = (h || '').toString().length;
+    for (const r of rowsArray) {
+      const v = (r[h] == null ? '' : String(r[h]));
+      if (v.length > maxLen) maxLen = v.length;
+    }
+    sheet.column(idx + 1).width(Math.min(Math.max(10, maxLen + 2), 40));
+  });
+
+  // זברה: תכלת בהיר/כהה בשורות הנתונים (החל משורה 2)
+  const lastRow = rowsArray.length + 1;
+  const LIGHT = "EAF5FF"; // תכלת בהיר
+  const DARK  = "D6ECFF"; // תכלת מעט כהה
+  for (let r = 2; r <= lastRow; r++) {
+    sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
+  }
+
+  // הורדה
+  const blob = await wb.outputAsync();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename.endsWith('.xlsx') ? filename : (filename + '.xlsx');
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ===================== Monthly summary card (homepage) =====================
