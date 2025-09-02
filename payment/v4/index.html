@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>אפליקציית חישוב משכורות — בדיקת טעינה נקייה</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#e9fbff;--card:#ffffff;--ink:#0b1b2b;--muted:#4b657a;--acc:#5ec6ff;--line:#bfe7f5}
+    *{box-sizing:border-box} body{margin:0;font-family:Heebo,system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+    header{padding:16px 20px;border-bottom:1px solid var(--line);background:#f3fdff;position:sticky;top:0;z-index:5}
+    h1{margin:0;font-size:18px}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 12px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.06);padding:12px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .inp{background:#ffffff;border:1px solid #d8eef7;border-radius:10px;padding:10px 12px;color:var(--ink)}
+    .btn{background:#9fe2ff;border:1px solid #77d7ff;color:#003a52;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--line);padding:8px;text-align:right;font-size:14px}
+    th{background:#eaf8ff;position:sticky;top:74px}
+    tfoot td, tfoot th{font-weight:800;background:#eaf8ff}
+    .foot{font-size:12px;color:var(--muted);margin-top:8px}
+    .scroll-x{overflow-x:auto}
+    #log{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;background:#f6fdff;border:1px dashed #bfe7f5;padding:8px;border-radius:10px;color:#0b1b2b}
+  </style>
+</head>
+<body>
+<header><h1>אפליקציית חישוב משכורות — טעינה נקייה</h1></header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>קובץ Excel/CSV</label><br>
+        <input id="file" type="file" accept=".xlsx,.xls,.csv" class="inp" />
+      </div>
+      <div>
+        <label>טעינת סשן JSON</label><br>
+        <input id="importJSONFile" type="file" accept=".json" class="inp" />
+      </div>
+      <div>
+        <label>עובד</label><br>
+        <select id="employeeFilter" class="inp" disabled></select>
+      </div>
+      <div class="row">
+        <button id="openCardBtn" class="btn" disabled>פתח כרטיס עובד</button>
+        <button id="exportDaily" class="btn" disabled>ייצוא יומי (XLSX)</button>
+        <button id="exportSummary" class="btn" disabled>ייצוא חודשי (XLSX)</button>
+        <button id="exportJSON" class="btn" disabled>ייצוא JSON</button>
+        <button id="clearSession" class="btn">נקה סשן</button>
+      </div>
+    </div>
+    <div id="log" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h3 style="margin:6px 0 10px 0">סיכום חודשי</h3>
+    <div class="scroll-x">
+      <table id="summaryTable">
+        <thead>
+          <tr>
+            <th>עובד</th>
+            <th>סה״כ שעות</th>
+            <th>רגיל 100%</th>
+            <th>נוספות 125%</th>
+            <th>נוספות 150%</th>
+            <th>שבת 150%</th>
+            <th>שעות משוקללות</th>
+            <th>שכר בסיס</th>
+            <th>נסיעות</th>
+            <th>טיפים</th>
+            <th>תוספת שכר</th>
+            <th>החזר מקדמה</th>
+            <th>שכר ברוטו</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot><tr id="summaryTotalsRow"><th>סה״כ</th><td colspan="12"></td></tr></tfoot>
+      </table>
+    </div>
+    <div class="foot">טיפ: פתח קונסול (F12) ותראה לוגים מפורטים.</div>
+  </div>
+</div>
+
+<!-- ספריות חובה -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
+
+<!-- האפליקציה -->
+<script src="app.js?v=1.9.5"></script>
+</body>
+</html>
