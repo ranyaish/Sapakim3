@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
-    /* ===== בסיס ופריסה (ללא שינויי צבע/מוטיב) ===== */
     :root{
       --bg:#f5f7fb; --card:#ffffff; --ink:#0b1c33; --muted:#6a7a95; --line:#e1e6ef;
       --acc:#4f8cff; --ok:#12d27c; --warn:#ffb020;
@@ -28,31 +27,34 @@
     .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .foot{margin-top:8px;font-size:12px;color:var(--muted)}
 
-    /* טבלאות */
+    /* טבלאות – צמצום רווחים */
     .hscroll{overflow:auto}
-    table{width:100%;border-collapse:collapse;min-width:880px}
-    th,td{border-bottom:1px solid var(--line);padding:10px;text-align:right;font-size:14px;white-space:nowrap}
+    table{width:100%;border-collapse:collapse;min-width:760px}
+    th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;font-size:13px;white-space:nowrap}
     thead th{position:sticky;top:64px;background:#f7faff;font-weight:800;z-index:2}
     tfoot td, tfoot th{font-weight:800;background:#fbfdff}
 
-    /* ===== מודל כרטיס עובד (מראה בסיסי) ===== */
+    /* מודל כרטיס עובד */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:10px}
     .modal.show{display:flex}
     .modal-dialog{max-width:1000px;width:100%}
     .modal-content{background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 12px 48px rgba(0,0,0,.15);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
-    .modal-header{padding:12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+    .modal-header{
+      padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;
+      position:sticky;top:0;background:#fff;z-index:5; /* דביק */
+    }
     .modal-title{margin:0;font-size:16px;font-weight:800;flex:1;text-align:center}
-    .modal-body{padding:12px;overflow:auto;-webkit-overflow-scrolling:touch}
+    .modal-body{padding:10px;overflow:auto;-webkit-overflow-scrolling:touch}
 
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-    .tab{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#244;cursor:pointer}
+    .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+    .tab{padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#244;cursor:pointer;font-size:13px}
     .tab.active{background:#f0f5ff;border-color:#d6e4ff;font-weight:800}
     .panel{display:none}
     .panel.show{display:block}
-    .section{border:1px dashed var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:#fff}
+    .section{border:1px dashed var(--line);border-radius:12px;padding:10px;margin-bottom:10px;background:#fff}
     .muted{color:var(--muted)}
 
-    /* ===== תוספת מינימלית: כפתורי ניווט בין עובדים ===== */
+    /* ניווט בין עובדים */
     .emp-nav{ display:inline-flex; gap:6px; margin-inline-start:8px; }
     .btn-mini{
       display:inline-flex; align-items:center; justify-content:center;
@@ -73,7 +75,6 @@
 <header><h1>אפליקציית חישוב משכורות</h1></header>
 
 <div class="wrap">
-  <!-- קופסת כלים עליונה -->
   <div class="card pad">
     <div class="row">
       <div>
@@ -100,7 +101,6 @@
     <div class="foot">שבת <b>08:00–17:00</b> = 150% (אם משמרת מתחילה בשבת מ-16:00 ומעלה – לא נספרות שעות שבת). מצב A: 9/11 → 100%/125%/150%; מצב B: ללא נוספות.</div>
   </div>
 
-  <!-- סיכום חודשי -->
   <div class="card pad" style="margin-top:14px">
     <div class="toolbar"><span style="font-weight:800">סיכום חודשי</span><span class="muted">ניתן לגלול אופקית</span></div>
     <div class="hscroll">
@@ -126,7 +126,6 @@
       <div class="modal-header">
         <button id="empCloseBtn" class="btn" style="background:#ff6b6b" onclick="closeEmpModal()">סגור</button>
         <h3 id="empModalTitle" class="modal-title">כרטיס עובד</h3>
-        <!-- תוספת מינימלית: כפתורי דפדוף -->
         <div class="emp-nav">
           <button class="btn-mini" id="empPrevBtn" title="הקודם">‹</button>
           <button class="btn-mini" id="empNextBtn" title="הבא">›</button>
@@ -253,10 +252,9 @@
   </div>
 </div>
 
-<!-- ספריות -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
 <script src="app.js"></script>
-<script>console.log('payroll minimal-nav v1.0');</script>
+<script>console.log('payroll modal-tune v1.1');</script>
 </body>
 </html>
