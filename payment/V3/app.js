@@ -36,7 +36,6 @@ async function readWorkbook(file){
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
   return rows;
 }
-
 function parsePunches(rows){
   const titleRe = /דו"ח שעות עבודה עבור\s+(.+?)\s+בין/;
   let currentEmp = null, inTable = false; const punches = [];
@@ -131,10 +130,6 @@ function setExtras(emp, ym, vals){
   e[ym] = { travel:+(vals.travel||0), tips:+(vals.tips||0), bonus:+(vals.bonus||0), advance:+(vals.advance||0) };
 }
 
-// ===================== Summary helpers =====================
-function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode}; return m; }
-function mapConfigRate(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={rate:+v.rate||0}; return m; }
-
 // ===================== State / Session =====================
 let punches = [];
 let perDayBase = [];
@@ -181,12 +176,11 @@ function reviveSession(obj){
   renderEmployeeSelect();
   saveLocal();
 }
-
 function saveLocal(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeSession())); }catch(e){} }
 function loadLocalIfAny(){ try{ const raw = localStorage.getItem(STORAGE_KEY); if(raw) reviveSession(JSON.parse(raw)); }catch(e){} }
 function clearLocal(){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} }
 
-// ===================== UI: Top employee selector only =====================
+// ===================== UI: top selector only =====================
 function renderEmployeeSelect(){
   const fsel = $('#employeeFilter');
   if(!fsel) return;
@@ -211,7 +205,6 @@ function downloadCSV(name, csv){
   const blob = new Blob([BOM + csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
-
 function exportDaily(){
   const selEmp = $('#employeeFilter').value || 'ALL';
   if(selEmp==='ALL'){
@@ -235,9 +228,8 @@ function exportDaily(){
     downloadCSV(`per_day_${selEmp}.csv`, csv);
   }
 }
-
 function exportSummary(){
-  // סיכום לכל התקופה + סכומי סעיפים (מצטבר על פני חודשים כפי שנשמר)
+  // אגרגציה כללית + סעיפים מצטברים לכל עובד
   const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=>({...r, employee:normEmpName(r.employee)}));
   const byEmp = new Map();
   for(const r of perDay){
@@ -247,7 +239,7 @@ function exportSummary(){
     obj.basePay += r.weighted * (+ensureEmpConfig(emp).rate || 0);
     byEmp.set(emp, obj);
   }
-  // צירוף סעיפים מצטברים
+  // צרף סעיפים מכל החודשים (אם אין — נשתמש ב-__default אם קיים)
   for(const [emp,obj] of byEmp){
     const exmap = ensureEmpConfig(emp).extras;
     let t=0,ti=0,b=0,a=0;
@@ -323,7 +315,9 @@ function filterPerDayByMonth(emp, ym){
   return all.filter(r=> normEmpName(r.employee)===emp && r.date.slice(0,7)===ym)
             .map(r=> ({...r, pay: r.weighted * (+ensureEmpConfig(emp).rate || 0)}));
 }
+function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode}; return m; }
 
+// פתיחת כרטיס
 function openEmployeeCard(emp){
   emp = normEmpName(emp);
   if(!emp) return;
@@ -360,6 +354,7 @@ function closeEmpModal(){
 }
 window.closeEmpModal = closeEmpModal;
 
+// טאבים
 function setActiveTab(id){
   ['config','daily','punches'].forEach(k=>{
     $('#tab-'+k).classList.toggle('active', k===id);
@@ -370,6 +365,7 @@ $('#tab-config').onclick = ()=> setActiveTab('config');
 $('#tab-daily').onclick = ()=> setActiveTab('daily');
 $('#tab-punches').onclick = ()=> setActiveTab('punches');
 
+// שינוי חודש בכרטיס
 $('#empMonthSel').addEventListener('change', ()=>{
   currentMonthKey = $('#empMonthSel').value || null;
   if(!currentEmpInModal) return;
@@ -380,6 +376,7 @@ $('#empMonthSel').addEventListener('change', ()=>{
   updateModalFinal();
 });
 
+// שינויי מצב/שכר לשעה
 $('#empMode').addEventListener('change', ()=>{
   if(!currentEmpInModal) return;
   ensureEmpConfig(currentEmpInModal).mode = $('#empMode').value;
@@ -393,7 +390,7 @@ $('#empRate').addEventListener('input', ()=>{
   if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
 });
 
-// ---- Extras UI (Daily tab) ----
+// ====== סעיפים (בטאב פירוט יומי) ======
 function readExtrasFromForm(){
   return {
     travel: +($('#extra_travel').value||0),
@@ -412,13 +409,15 @@ function loadExtrasIntoForm(emp, ym){
 $('#saveExtrasBtn').onclick = ()=>{
   if(!currentEmpInModal){ return; }
   if(!currentMonthKey){ alert('אין חודש נבחר.'); return; }
+  // שמירה לפי חודש
   setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm());
-  // עדכון מיידי:
+  // עדכון מיידי בכרטיס + גלובלי (ייצוא CSV/JSON יראה את זה)
   updateModalTotals();
   updateModalFinal();
   saveLocal();
 };
 
+// פאנלים בכרטיס
 function renderEmpDailyPanel(emp, ym){
   const rows = ym ? filterPerDayByMonth(emp, ym) : [];
   const tb = $('#empCardDaily tbody'); if(!tb) return;
@@ -472,10 +471,8 @@ function updateModalFinal(){
   const exSum = +($('#empExtrasSum').textContent||0);
   $('#empFinal').textContent = fmt2(base + exSum);
 }
-['extra_travel','extra_tips','extra_bonus','extra_advance'].forEach(id=>{
-  document.addEventListener('input', (e)=>{ if(e.target && e.target.id===id) { updateModalTotals(); updateModalFinal(); } });
-});
 
+// פתיחה מכפתור למעלה
 function openCardFromSelect(){
   const emp = $('#employeeFilter').value;
   if(emp && emp!=='ALL') openEmployeeCard(emp);
@@ -501,6 +498,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if(confirm('לנקות סשן מקומי?')){ clearLocal(); alert('נוקה הזיכרון המקומי.'); }
   });
   $('#openCardBtn').addEventListener('click', openCardFromSelect);
+
   // load previous
   loadLocalIfAny();
 });
