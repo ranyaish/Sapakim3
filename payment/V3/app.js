@@ -60,48 +60,80 @@ async function readWorkbook(file){
   return allRows;
 }
 
-// ===================== Parse punches (flex headers + strong stops + dedupe) =====================
+// === PATCH-ANCHOR: PARSE_PUNCHES (v1.9.1) ===
 function parsePunches(rows){
-  const titleRe = /דו"ח\s*שעות\s*עבודה\s*עבור\s+(.+?)\s+בין/;
+  // כותרת גמישה מאוד (מתיר סימני פיסוק/רווחים/גרשיים שונים)
+  const titleRe = /דו.?ח.*שעות.*עבודה.*עבור\s+(.+?)\s+בין/i;
+
   let currentEmp = null, inTable = false;
   const punches = [];
-  const seen = new Set(); // emp|inISO|outISO
+  const seen = new Set();                      // emp|inISO|outISO
+  let unknownCounter = 0;                      // מונה בלוקים ללא שם
 
+  // זיהוי כותרת הטבלה (גמיש)
   const isHeaderRow = (r) => {
-    const joined = r.join(' ');
-    return /שעת.?הגעה/.test(joined) && /שעת.?עזיבה/.test(joined) && /יום/.test(joined);
+    const t = r.join(' ').replace(/\u00A0/g,' ');
+    return /שעת.?הגעה/.test(t) && /שעת.?עזיבה/.test(t) && /יום/.test(t);
   };
+
+  // תנאי עצירה
   const isStopRow = (r) => {
-    const c0 = r[0] || '';
-    const joined = r.join(' ');
+    const c0 = (r[0] || '');
+    const t  = r.join(' ');
     return (
       c0.startsWith('סה"כ שעות') ||
       c0.startsWith('מספר ימי עבודה') ||
       c0.startsWith('אחוזי שכר') ||
-      /דו"ח\s*שעות\s*עבודה\s*עבור/.test(joined) ||
+      /דו.?ח.*שעות.*עבודה.*עבור/.test(t) ||
       r.every(c => !c)
     );
   };
 
-  for (const row of rows){
-    const r = (row || []).map(x => String(x ?? '').trim());
+  // נסה לחפש שם עובד 10 שורות אחורה מהשורה הנתונה
+  function lookupEmployeeNear(idx){
+    for(let i=Math.max(0, idx-10); i<idx; i++){
+      const r = rows[i] || [];
+      for(const cell of r){
+        const s = String(cell||'').trim();
+        const m = s.match(titleRe);
+        if(m) return normEmpName(m[1]);
+      }
+    }
+    // לא נמצא—נייצר שם זמני לבלוק הזה
+    unknownCounter += 1;
+    return `לא מזוהה #${unknownCounter}`;
+  }
+
+  for(let ri=0; ri<rows.length; ri++){
+    const r = (rows[ri] || []).map(x => String(x ?? '').trim());
     if (r.length === 0) continue;
 
+    // כותרת עובד (ישירה)
     if (r[0]) {
       const m = r[0].match(titleRe);
-      if (m) { currentEmp = normEmpName(m[1]); inTable = false; continue; }
+      if (m){ currentEmp = normEmpName(m[1]); inTable = false; continue; }
     }
-    if (!inTable && isHeaderRow(r)) { inTable = true; continue; }
+
+    // התחלת טבלה
+    if (!inTable && isHeaderRow(r)) {
+      inTable = true;
+      // אם אין לנו שם עובד עד כה—ננסה “לגרד” אחורה; אחרת ניצור שם זמני
+      if(!currentEmp) currentEmp = lookupEmployeeNear(ri);
+      continue;
+    }
 
     if (inTable) {
-      if (isStopRow(r)) { inTable = false; continue; }
+      if (isStopRow(r)) { inTable = false; currentEmp = null; continue; }
 
       const din = parseHebDateTime(r[0]);
       const dout= parseHebDateTime(r[1]);
-      if (din && dout && currentEmp) {
-        const key = `${currentEmp}|${din.toISOString()}|${dout.toISOString()}`;
+
+      if (din && dout) {
+        // אם עדיין אין עובד—שייך לבלוק “לא מזוהה”
+        const emp = currentEmp || lookupEmployeeNear(ri);
+        const key = `${emp}|${din.toISOString()}|${dout.toISOString()}`;
         if (!seen.has(key)) {
-          punches.push({ employee: currentEmp, dtIn: din, dtOut: dout });
+          punches.push({ employee: emp, dtIn: din, dtOut: dout });
           seen.add(key);
         }
       }
