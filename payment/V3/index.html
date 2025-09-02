@@ -57,6 +57,7 @@
       <h2 id="empModalTitle">כרטיס עובד</h2>
       <button class="btn warn" onclick="closeEmpModal()">סגור</button>
     </header>
+
     <div class="content">
       <div class="tabs">
         <button id="tab-config" class="tab active">פרטי שכר</button>
@@ -66,7 +67,7 @@
 
       <div class="grid2">
         <div>
-          <!-- CONFIG TAB (ללא סעיפים) -->
+          <!-- ====== TAB: פרטי שכר (ללא סעיפים) ====== -->
           <div id="panel-config">
             <div class="sumbox">
               <div class="sumrow">
@@ -81,6 +82,7 @@
                 <input id="empRate" type="number" step="0.01" class="inp narrow" />
               </div>
             </div>
+
             <div class="hr"></div>
             <div class="pill" style="margin:6px 0">תצוגת חודש</div>
             <div class="sumrow">
@@ -89,7 +91,7 @@
             </div>
           </div>
 
-          <!-- DAILY TAB (כאן הסעיפים) -->
+          <!-- ====== TAB: פירוט יומי + סעיפי שכר (כאן נמצאים הסעיפים) ====== -->
           <div id="panel-daily" style="display:none">
             <div class="pill" style="margin-bottom:8px">סעיפי שכר לחודש הנבחר</div>
             <div class="sumbox" style="margin-bottom:10px">
@@ -120,7 +122,7 @@
             </div>
           </div>
 
-          <!-- PUNCHES TAB -->
+          <!-- ====== TAB: משמרות ====== -->
           <div id="panel-punches" style="display:none">
             <div class="pill" style="margin-bottom:8px">משמרות (כניסה/יציאה) לחודש שנבחר</div>
             <div class="tablewrap">
@@ -140,16 +142,17 @@
           </div>
         </div>
 
+        <!-- ====== תיבת סיכום ====== -->
         <div>
           <div class="sumbox">
             <div class="pill">סיכום חודש נבחר</div>
             <div class="hr"></div>
             <div class="sumrow"><span>שעות משוקללות</span><b id="empWgt">0</b></div>
             <div class="sumrow"><span>שכר בסיס</span><b id="empBase">0</b></div>
-            <!-- שורה חדשה בשם "סעיפי שכר" -->
+            <!-- שורה חדשה: סכום סעיפי השכר -->
             <div class="sumrow"><span>סעיפי שכר</span><b id="empExtrasSum">0</b></div>
             <div class="hr"></div>
-            <!-- שינוי טקסט לשכר ברוטו -->
+            <!-- שינוי טקסט: שכר ברוטו -->
             <div class="sumrow"><span>שכר ברוטו</span><b id="empFinal">0</b></div>
           </div>
         </div>
