@@ -7,72 +7,65 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
+    /* ===== בסיס ופריסה (ללא שינויי צבע/מוטיב) ===== */
     :root{
-      --bg1:#d7f7f3; --bg2:#c7f1ee;      /* טורקיז בהיר */
-      --card:#ffffff; --ink:#0b1c33; --muted:#6a7a95; --line:#e1e6ef;
-      --acc:#6fb6ff; --acc2:#a7d4ff;     /* פסטל לכפתורים */
-      --ok:#12d27c; --warn:#ffb020;
+      --bg:#f5f7fb; --card:#ffffff; --ink:#0b1c33; --muted:#6a7a95; --line:#e1e6ef;
+      --acc:#4f8cff; --ok:#12d27c; --warn:#ffb020;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; color:var(--ink); font-family:Heebo,system-ui,Arial,sans-serif;
-      background:linear-gradient(180deg,var(--bg1),var(--bg2));
-    }
-    header{padding:16px 18px;border-bottom:1px solid var(--line);background:#f6ffff;position:sticky;top:0;z-index:50}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,Arial,sans-serif}
+    header{padding:16px 18px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:40}
     h1{margin:0;font-size:18px}
     .wrap{max-width:1200px;margin:18px auto;padding:0 14px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
     .pad{padding:14px}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
     .inp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--ink)}
-    .btn{background:var(--acc);color:#003;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn.secondary{background:var(--acc2)}
-    .btn.danger{background:#ffb1b1;color:#4b0000}
+    .btn{background:var(--acc);color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.6;cursor:not-allowed}
     label{font-size:14px;color:var(--muted)}
     .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .foot{margin-top:8px;font-size:12px;color:var(--muted)}
-    /* סיכום חודשי עם גלילה אופקית */
+
+    /* טבלאות */
     .hscroll{overflow:auto}
     table{width:100%;border-collapse:collapse;min-width:880px}
     th,td{border-bottom:1px solid var(--line);padding:10px;text-align:right;font-size:14px;white-space:nowrap}
-    thead th{position:sticky;top:64px;background:#f2f7ff;font-weight:800;z-index:2}
-    tfoot td, tfoot th{font-weight:800;background:#f8fbff;position:sticky;bottom:0}
-    /* מודל */
+    thead th{position:sticky;top:64px;background:#f7faff;font-weight:800;z-index:2}
+    tfoot td, tfoot th{font-weight:800;background:#fbfdff}
+
+    /* ===== מודל כרטיס עובד (מראה בסיסי) ===== */
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:10px}
     .modal.show{display:flex}
     .modal-dialog{max-width:1000px;width:100%}
     .modal-content{background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 12px 48px rgba(0,0,0,.15);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
-    /* ---- Sticky modal header + nav buttons ---- */
-    .modal-header{
-      position: sticky; top: 0; z-index: 20; background: #fff;
-      border-bottom: 1px solid var(--line); padding: 12px;
-      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
-    }
-    .modal-title{margin:0;text-align:center}
-    .modal-body{overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}
-    .btn-mini{
-      display:inline-flex;align-items:center;justify-content:center;
-      min-width:34px;height:34px;padding:0 8px;border:1px solid #cfe0ff;border-radius:10px;background:#f3f7ff;color:#244;font-weight:700;cursor:pointer
-    }
-    .btn-mini:active{transform:translateY(1px)}
-    .emp-nav{justify-self:end;display:inline-flex;gap:6px}
-    #empCloseBtn{justify-self:start}
-    /* טאבס בכרטיס */
+    .modal-header{padding:12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+    .modal-title{margin:0;font-size:16px;font-weight:800;flex:1;text-align:center}
+    .modal-body{padding:12px;overflow:auto;-webkit-overflow-scrolling:touch}
+
     .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-    .tab{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#f8fbff;color:#244;cursor:pointer}
-    .tab.active{background:#e7f1ff;border-color:#cfe0ff;font-weight:800}
+    .tab{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#244;cursor:pointer}
+    .tab.active{background:#f0f5ff;border-color:#d6e4ff;font-weight:800}
     .panel{display:none}
     .panel.show{display:block}
     .section{border:1px dashed var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:#fff}
     .muted{color:var(--muted)}
+
+    /* ===== תוספת מינימלית: כפתורי ניווט בין עובדים ===== */
+    .emp-nav{ display:inline-flex; gap:6px; margin-inline-start:8px; }
+    .btn-mini{
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:30px; height:30px; padding:0 8px;
+      border:1px solid #cfe0ff; border-radius:8px; background:#f3f7ff; color:#244;
+      font-weight:700; cursor:pointer;
+    }
+    .btn-mini:active{ transform:translateY(1px); }
+
     @media (max-width:700px){
       thead th{top:56px}
       .row > *{flex:1 1 200px}
       .modal-dialog{max-width:95vw}
-      .btn{padding:10px 12px}
-      .btn-mini{min-width:30px;height:30px}
     }
   </style>
 </head>
@@ -90,7 +83,7 @@
       <div>
         <label>טעינת סשן JSON</label><br>
         <input id="importJSONFile" type="file" accept=".json" class="inp" style="display:none" />
-        <button id="importJSON" class="btn secondary">בחר קובץ</button>
+        <button id="importJSON" class="btn">בחר קובץ</button>
       </div>
       <div>
         <label>בחירת עובד</label><br>
@@ -100,8 +93,8 @@
         <button id="openCardBtn" class="btn">פתח כרטיס עובד</button>
         <button id="exportDaily" class="btn" disabled>(XLSX) ייצוא יומי</button>
         <button id="exportSummary" class="btn" disabled>(XLSX) ייצוא חודשי</button>
-        <button id="exportJSON" class="btn secondary" disabled>ייצוא JSON</button>
-        <button id="clearSession" class="btn danger">נקה סשן</button>
+        <button id="exportJSON" class="btn" disabled>ייצוא JSON</button>
+        <button id="clearSession" class="btn" style="background:#ff6b6b">נקה סשן</button>
       </div>
     </div>
     <div class="foot">שבת <b>08:00–17:00</b> = 150% (אם משמרת מתחילה בשבת מ-16:00 ומעלה – לא נספרות שעות שבת). מצב A: 9/11 → 100%/125%/150%; מצב B: ללא נוספות.</div>
@@ -130,10 +123,10 @@
 <div id="empModal" class="modal" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <!-- Sticky header + ניווט -->
       <div class="modal-header">
-        <button id="empCloseBtn" class="btn danger" onclick="closeEmpModal()">סגור</button>
+        <button id="empCloseBtn" class="btn" style="background:#ff6b6b" onclick="closeEmpModal()">סגור</button>
         <h3 id="empModalTitle" class="modal-title">כרטיס עובד</h3>
+        <!-- תוספת מינימלית: כפתורי דפדוף -->
         <div class="emp-nav">
           <button class="btn-mini" id="empPrevBtn" title="הקודם">‹</button>
           <button class="btn-mini" id="empNextBtn" title="הבא">›</button>
@@ -143,7 +136,7 @@
       <div class="modal-body">
         <div class="tabs">
           <button id="tab-config"  class="tab active">פרטי שכר</button>
-          <button id="tab-daily"   class="tab">פירוט יומי + סעיפי שכר</button>
+          <button id="tab-daily"   class="tab">פירוט יומי + סעיפים</button>
           <button id="tab-punches" class="tab">משמרות (כניסה/יציאה)</button>
         </div>
 
@@ -171,9 +164,6 @@
                 <label>חודש (YYYY-MM)</label><br>
                 <select id="empMonthSel" class="inp" style="min-width:160px"></select>
               </div>
-              <div style="align-self:flex-end">
-                <button id="recalcMonth" class="btn secondary">תצוגת חודש</button>
-              </div>
             </div>
           </div>
 
@@ -192,7 +182,6 @@
                 <label>שכר ברוטו</label><div id="empFinal" style="font-weight:800">0.00</div>
               </div>
             </div>
-            <div class="muted" style="margin-top:6px">הסעיפים נשמרים לפי חודש עובד. השינויים מתעדכנים מידית בסיכום.</div>
           </div>
         </div>
 
@@ -268,6 +257,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
 <script src="app.js"></script>
-<script>console.log('payroll app version','1.9.8-r2');</script>
+<script>console.log('payroll minimal-nav v1.0');</script>
 </body>
 </html>
