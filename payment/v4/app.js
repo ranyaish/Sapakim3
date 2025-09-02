@@ -351,27 +351,40 @@ function openEmployeeCard(emp){
   $('#empRate').value = +ensureEmpConfig(emp).rate || 0;
 
   const months = monthsForEmployee(emp);
-  const monthSel = $('#empMonthSel'), monthSel2 = $('#empMonthSel2'); monthSel.innerHTML=''; monthSel2.innerHTML='';
-  if(months.length===0){ monthSel.innerHTML = '<option value="">—</option>'; monthSel2.innerHTML = '<option value="">—</option>'; currentMonthKey = null; }
-  else { currentMonthKey = months[months.length-1]; const opts = months.map(m=> `<option value="${m}">${m}</option>`).join(''); monthSel.innerHTML = opts; monthSel2.innerHTML = opts; monthSel.value = currentMonthKey; monthSel2.value = currentMonthKey; }
+  const monthSel = $('#empMonthSel'), monthSel2 = $('#empMonthSel2');
+  monthSel.innerHTML=''; monthSel2.innerHTML='';
+  if(months.length===0){
+    monthSel.innerHTML = '<option value="">—</option>';
+    monthSel2.innerHTML = '<option value="">—</option>';
+    currentMonthKey = null;
+  } else {
+    currentMonthKey = months[months.length-1];
+    const opts = months.map(m=> `<option value="${m}">${m}</option>`).join('');
+    monthSel.innerHTML = opts; monthSel2.innerHTML = opts;
+    monthSel.value = currentMonthKey; monthSel2.value = currentMonthKey;
+  }
 
   loadExtrasIntoForm(emp, currentMonthKey);
   renderEmpDailyPanel(emp, currentMonthKey);
   renderEmpPunchesPanel(emp, currentMonthKey);
   updateModalTotals(); updateModalFinal();
-  $('#empModal').classList.add('show'); $('#empModal').setAttribute('aria-hidden','false');
-}
-function closeEmpModal(){ $('#empModal').classList.remove('show'); $('#empModal').setAttribute('aria-hidden','true'); currentEmpInModal = null; }
-window.closeEmpModal = closeEmpModal;
 
-// טאבים
-function setActiveTab(id){
-  ['config','daily','punches'].forEach(k=>{
-    $('#tab-'+k).classList.toggle('active', k===id);
-    $('#panel-'+k).classList.toggle('show', k===id);
-  });
+  $('#empModal').classList.add('show');
+  $('#empModal').setAttribute('aria-hidden','false');
+
+  // חשוב: נועל גלילת רקע כדי שכותרות/שורות מהרקע לא "יצופו"
+  document.body.classList.add('modal-open');
 }
 
+function closeEmpModal(){
+  $('#empModal').classList.remove('show');
+  $('#empModal').setAttribute('aria-hidden','true');
+
+  // שחרור הנעילה כשסוגרים
+  document.body.classList.remove('modal-open');
+
+  currentEmpInModal = null;
+}
 // ניווט בין עובדים
 function openSiblingEmployee(step){
   if(!currentEmpInModal) return;
