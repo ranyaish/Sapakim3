@@ -30,13 +30,11 @@ function parseHebDateTime(s){
   if(!s) return null;
   if(s instanceof Date) return s;
   s = String(s).trim();
-  // dd/mm/yyyy hh:mm[:ss]
   const m = s.match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if(m){ const d=+m[1], mo=+m[2], y=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0); return new Date(y,mo-1,d,h,mi,se); }
   const d = new Date(s); return isNaN(d) ? null : d;
 }
 
-/** פרסור משמרות – תבנית ראשית + נפוצה */
 function parsePunchesPrimary(rows){
   const titleRe = /דו"ח שעות עבודה עבור\s+(.+?)\s+בין/;
   let currentEmp = null, inTable = false; const punches = [];
@@ -57,8 +55,6 @@ function parsePunchesPrimary(rows){
   }
   return punches;
 }
-
-/** פרסור חלופי – תבנית "דו״ח שעות עבור ___ בין ...", כותרת ב-A והטבלה ב־B.. */
 function parsePunchesFallback(rows){
   const allRows = [];
   for(const row of rows){ allRows.push((row || []).map(x => String(x ?? '').replace(/\u00A0/g,' ').trim())); }
@@ -70,7 +66,6 @@ function parsePunchesFallback(rows){
     const m = A(i).match(/דו"ח שעות עבודה עבור\s+(.+?)\s+בין/);
     if(m){
       const emp = normEmpName(m[1]); i++;
-      // חפש כותרות הטבלה "שעת הגעה" בעמודה B או A
       while(i<allRows.length && !A(i).includes('שעת הגעה') && !B(i).includes('שעת הגעה')) i++;
       i++;
       while(i<allRows.length){
@@ -84,12 +79,10 @@ function parsePunchesFallback(rows){
   }
   return punches;
 }
-
 function parsePunches(rows){
   const p1 = parsePunchesPrimary(rows);
   if(p1.length) return p1;
-  const p2 = parsePunchesFallback(rows);
-  return p2;
+  return parsePunchesFallback(rows);
 }
 
 // ===================== Core calculations =====================
@@ -130,7 +123,7 @@ function buildDailyBase(_punches){
       base.set(key, obj);
     }
   }
-  return Array.from(base.values()).sort((a,b)=> (a.employee.localeCompare(b.employee,'he') || a.date.localeCompare(b.date)));
+  return Array.from(base.values()).sort((a,b)=> (a.employee.localeCompare(b,'he') || a.date.localeCompare(b.date)));
 }
 function applyOvertime(perDayBase, modeByEmp){
   return perDayBase.map(r=>{
@@ -271,7 +264,7 @@ function exportSummary(){
     if(t===0 && ti===0 && b===0 && a===0 && exmap.__default){ t+=+(exmap.__default.travel||0); ti+=+(exmap.__default.tips||0); b+=+(exmap.__default.bonus||0); a+=+(exmap.__default.advance||0); }
     obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a; obj.finalPay = obj.basePay + t + ti + b - a;
   }
-  const rows = Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee,'he')).map(r=> ({
+  const rows = Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b,'he')).map(r=> ({
     employee:r.employee,total:fmt2(r.total),reg_100:fmt2(r.reg),ot_125:fmt2(r.ot125),ot_150:fmt2(r.ot150),shabbat_150:fmt2(r.shabbat150),weighted_hours:fmt2(r.weighted),base_pay:fmt2(r.basePay),travel:fmt2(r.travel||0),tips:fmt2(r.tips||0),bonus:fmt2(r.bonus||0),advance:fmt2(r.advance||0),final_pay:fmt2(r.finalPay||0)
   }));
   const headersHeb = ['עובד','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר בסיס','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'];
@@ -295,7 +288,7 @@ function computeSummaryRows() {
     if (t===0 && ti===0 && b===0 && a===0 && exmap.__default) { t += +(exmap.__default.travel||0); ti += +(exmap.__default.tips||0); b += +(exmap.__default.bonus||0); a += +(exmap.__default.advance||0); }
     obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a; obj.finalPay = obj.basePay + t + ti + b - a;
   }
-  return Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee,'he'));
+  return Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b,'he'));
 }
 function renderMonthlySummaryCard() {
   const tbody = document.querySelector('#summaryTable tbody');
@@ -379,7 +372,7 @@ function setActiveTab(id){
   });
 }
 
-// ניווט בין עובדים
+// ====== ניווט בין עובדים (תוספת מינימלית) ======
 function openSiblingEmployee(step){
   if(!currentEmpInModal) return;
   const emps = getEmployeesList();
@@ -497,14 +490,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // סעיפים
   $('#saveExtrasBtn').onclick = ()=>{ if(!currentEmpInModal) return; if(!currentMonthKey){ alert('אין חודש נבחר.'); return; } setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm()); updateModalTotals(); updateModalFinal(); saveLocal(); renderMonthlySummaryCard(); };
 
-  // ניווט בין עובדים
+  // תוספת מינימלית: ניווט בין עובדים
   $('#empPrevBtn')?.addEventListener('click', ()=> openSiblingEmployee(-1));
   $('#empNextBtn')?.addEventListener('click', ()=> openSiblingEmployee(+1));
   document.addEventListener('keydown', (e)=>{
     const modalOpen = $('#empModal')?.classList.contains('show');
     if(!modalOpen) return;
-    if(e.key === 'ArrowRight') openSiblingEmployee(-1); // RTL: ימין = הקודם
-    if(e.key === 'ArrowLeft')  openSiblingEmployee(+1); // RTL: שמאל = הבא
+    if(e.key === 'ArrowRight') openSiblingEmployee(-1); // RTL: ימינה = הקודם
+    if(e.key === 'ArrowLeft')  openSiblingEmployee(+1); // RTL: שמאלה = הבא
   });
 
   // load existing session
