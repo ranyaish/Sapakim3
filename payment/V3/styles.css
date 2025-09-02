@@ -112,3 +112,10 @@ label{font-size:14px;color:#334b68}
   .sumrow{flex-wrap:wrap}
   .sumrow .inp{flex:1}
 }
+/* ... הקובץ שלך כרגיל ... */
+
+/* כדי שהכותרת של טבלת הסיכום לא תסתיר שמות עובדים */
+#summaryTable thead th { position: static; top: auto; }
+
+/* הדגשת שורת הסיכום */
+#summaryTable tfoot td, #summaryTable tfoot th { font-weight: 800; }
