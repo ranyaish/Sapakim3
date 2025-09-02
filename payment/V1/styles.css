@@ -1,13 +1,13 @@
 :root{
-  /* רקע טורקיז-ירקרק בהיר מאוד */
-  --bg1:#EEFFF7;
-  --bg2:#E6FFF8;
+  /* רקע – טיפה יותר טורקיז */
+  --bg1:#E9FFF7;
+  --bg2:#D7FFF4;
 
-  /* קלפים/מודל בהירים – קרם */
-  --card:#FFF8EE;
-  --card-br:#F0E6D7;
+  /* קלפים בהירים */
+  --card:#FFF9F0;
+  --card-br:#EFE4D6;
 
-  /* טקסט כהה וניגודיות */
+  /* טקסט וניגודיות */
   --ink:#0b1b2b;
   --muted:#4b5d77;
 
@@ -17,12 +17,13 @@
   --warn:#E95353;
 
   /* קווי הפרדה */
-  --line:#e6dece;
+  --line:#e8e0d0;
 }
 
 /* בסיס */
 *{box-sizing:border-box}
 html,body{height:100%}
+html,body{overflow-x:hidden} /* מונע גלילה אופקית של כל העמוד */
 body{
   margin:0;
   background:linear-gradient(180deg,var(--bg1),var(--bg2));
@@ -40,20 +41,25 @@ header{
 h1{margin:0;font-size:20px;color:#134}
 .wrap{max-width:1100px;margin:14px auto;padding:0 12px}
 
+/* קלפים */
 .card{
   background:var(--card);
   border:1px solid var(--card-br);
   border-radius:16px;
-  box-shadow:0 6px 24px rgba(0,0,0,.08)
+  box-shadow:0 6px 24px rgba(0,0,0,.08);
+  overflow:hidden; /* מונע זליגה לרוחב */
 }
 .pad{padding:12px}
+
+/* פריסה כללית */
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-.col{flex:1 1 260px}
+.col{flex:1 1 260px;min-width:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap}
 
+/* שדות = לבן */
 .inp{
   width:100%;
-  background:#fff;border:1px solid #d6dbe8;border-radius:12px;
+  background:#ffffff;border:1px solid #d6dbe8;border-radius:12px;
   padding:10px 12px;color:var(--ink);min-height:40px
 }
 .btn{
@@ -69,15 +75,24 @@ label{font-size:14px;color:#334b68}
 .small{font-size:12px;color:#6b7a8f}
 .foot{margin-top:8px;font-size:12px;color:#4a6278}
 
-/* אזור תוכן דו־עמודי */
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* גריד דו־עמודי – לא “דוחף” לרוחב */
+.grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:12px
+}
 .stickybar{
   position:sticky;top:56px;z-index:3;background:#fafbff;
   border-bottom:1px solid #e8ecf7;padding:8px 12px;border-radius:16px 16px 0 0
 }
 
-/* טבלאות */
-.tablewrap{overflow:auto}
+/* טבלאות – גלילה אופקית רק פנימית */
+.tablewrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  max-width:100%;
+}
+.tablewrap > table{min-width:720px} /* מונע שבירה וללא הרחבת העמוד */
 table{width:100%;border-collapse:collapse}
 th,td{
   border-bottom:1px solid var(--line);padding:10px;text-align:right;font-size:14px;
@@ -97,7 +112,7 @@ th{position:sticky;top:96px;background:#fff}
 .dialog header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ece8de;padding:10px 14px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center}
 .dialog h2{margin:0;font-size:18px;color:#0b1b2b}
 .dialog .content{padding:12px}
-.grid2{display:grid;grid-template-columns:1fr 330px;gap:12px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px}
 .sumbox{background:#fff;border:1px solid #ece8de;border-radius:12px;padding:10px}
 .sumrow{display:flex;justify-content:space-between;margin:6px 0;gap:10px;align-items:center}
 .sumrow b{font-weight:800}
