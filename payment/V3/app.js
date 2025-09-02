@@ -186,7 +186,7 @@ function renderEmployeeSelect(){
   $('#openCardBtn').disabled = emps.length===0;
 }
 
-// ===================== XLSX helpers (Bold header) =====================
+// ===================== XLSX helpers (RTL + Bold header + zebra rows) =====================
 async function exportXlsx(filename, headersHeb, rowsArray) {
   const X = window.XlsxPopulate;
   if (!X) { alert('XlsxPopulate לא נטען'); return; }
@@ -194,17 +194,27 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
   const wb = await X.fromBlankAsync();
   const sheet = wb.sheet(0).name("Export");
 
-  // header
+  // RTL
+  try {
+    if (typeof sheet.rightToLeft === 'function') {
+      sheet.rightToLeft(true);
+    } else if (sheet._sheet) {
+      sheet._sheet.sheetViews = sheet._sheet.sheetViews || [{ workbookViewId: 0 }];
+      sheet._sheet.sheetViews[0].rightToLeft = 1;
+    }
+  } catch (_) {}
+
+  // Header bold
   sheet.cell(1, 1).value([headersHeb]);
   sheet.row(1).style({ bold: true });
 
-  // data
+  // Data
   if (rowsArray.length) {
     const dataMatrix = rowsArray.map(row => headersHeb.map(h => row[h]));
     sheet.cell(2, 1).value(dataMatrix);
   }
 
-  // align right + auto width
+  // Align right + auto width
   const used = sheet.usedRange();
   if (used) used.style({ horizontalAlignment: "right" });
 
@@ -217,6 +227,15 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
     sheet.column(idx + 1).width(Math.min(Math.max(10, maxLen + 2), 40));
   });
 
+  // Zebra rows
+  const lastRow = rowsArray.length + 1;
+  const LIGHT = "EAF5FF";
+  const DARK  = "D6ECFF";
+  for (let r = 2; r <= lastRow; r++) {
+    sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
+  }
+
+  // Download
   const blob = await wb.outputAsync();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -226,6 +245,8 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
 }
 
 // ===================== Export XLSX =====================
+function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode}; return m; }
+
 function exportDaily(){
   const selEmp = ($('#employeeFilter').value || 'ALL');
 
@@ -233,8 +254,6 @@ function exportDaily(){
     const emp = r.employee;
     const rate = +ensureEmpConfig(emp).rate || 0;
     const pay = r.weighted * rate;
-
-    // סעיפים חודשיים לפי YYYY-MM
     const ym = r.date.slice(0,7);
     const ex = getExtras(emp, ym) || {};
     const travel  = +(ex.travel  || 0);
@@ -266,7 +285,8 @@ function exportDaily(){
   const rows = (selEmp==='ALL') ? perDayAll : perDayAll.filter(r => r.employee === selEmp);
 
   const headersHeb = [
-    'עובד','תאריך','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר לשעה','שכר יום','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'
+    'עובד','תאריך','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות',
+    'שכר לשעה','שכר יום','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'
   ];
 
   const rowsForXlsx = rows.map(r => ({
@@ -291,8 +311,9 @@ function exportDaily(){
 }
 
 function exportSummary(){
-  // אגרגציה לכל התקופה (אפשר להוסיף סינון לפי חודש בהמשך)
-  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=>({...r, employee:normEmpName(r.employee)}));
+  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
+                  .map(r=>({...r, employee:normEmpName(r.employee)}));
+
   const byEmp = new Map();
   for(const r of perDay){
     const emp = r.employee;
@@ -301,7 +322,7 @@ function exportSummary(){
     obj.basePay += r.weighted * (+ensureEmpConfig(emp).rate || 0);
     byEmp.set(emp, obj);
   }
-  // סעיפים מצטברים מכל החודשים
+
   for(const [emp,obj] of byEmp){
     const exmap = ensureEmpConfig(emp).extras || {};
     let t=0,ti=0,b=0,a=0;
@@ -324,63 +345,36 @@ function exportSummary(){
     ot_150:fmt2(r.ot150),
     shabbat_150:fmt2(r.shabbat150),
     weighted_hours:fmt2(r.weighted),
-// ===================== XLSX helpers (RTL + Bold header + zebra rows) =====================
-async function exportXlsx(filename, headersHeb, rowsArray) {
-  const X = window.XlsxPopulate;
-  if (!X) { alert('XlsxPopulate לא נטען'); return; }
+    base_pay:fmt2(r.basePay),
+    travel:fmt2(r.travel||0),
+    tips:fmt2(r.tips||0),
+    bonus:fmt2(r.bonus||0),
+    advance:fmt2(r.advance||0),
+    final_pay:fmt2(r.finalPay||0)
+  }));
 
-  const wb = await X.fromBlankAsync();
-  const sheet = wb.sheet(0).name("Export");
+  const headersHeb = [
+    'עובד','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות',
+    'שכר בסיס','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'
+  ];
 
-  // נסה להגדיר מבט מימין לשמאל (RTL) אם הספרייה תומכת
-  try {
-    if (typeof sheet.rightToLeft === 'function') {
-      sheet.rightToLeft(true);
-    } else if (sheet._sheet) {
-      // ניסיון לכפות RTL ברמת ה־XML הפנימי (OpenXML)
-      sheet._sheet.sheetViews = sheet._sheet.sheetViews || [{ workbookViewId: 0 }];
-      sheet._sheet.sheetViews[0].rightToLeft = 1;
-    }
-  } catch (_) { /* מתעלמים אם לא ניתן בדפדפן */ }
+  const rowsForXlsx = rows.map(r => ({
+    'עובד': r.employee,
+    'סה"כ שעות': r.total,
+    'רגיל 100%': r.reg_100,
+    'נוספות 125%': r.ot_125,
+    'נוספות 150%': r.ot_150,
+    'שבת 150%': r.shabbat_150,
+    'שעות משוקללות': r.weighted_hours,
+    'שכר בסיס': r.base_pay,
+    'נסיעות': r.travel,
+    'טיפים': r.tips,
+    'תוספת שכר': r.bonus,
+    'החזר מקדמה': r.advance,
+    'שכר ברוטו': r.final_pay
+  }));
 
-  // כתיבת כותרת (Bold)
-  sheet.cell(1, 1).value([headersHeb]);
-  sheet.row(1).style({ bold: true });
-
-  // כתיבת נתונים
-  if (rowsArray.length) {
-    const dataMatrix = rowsArray.map(row => headersHeb.map(h => row[h]));
-    sheet.cell(2, 1).value(dataMatrix);
-  }
-
-  // יישור לימין + רוחב אוטומטי
-  const used = sheet.usedRange();
-  if (used) used.style({ horizontalAlignment: "right" });
-
-  headersHeb.forEach((h, idx) => {
-    let maxLen = (h || '').toString().length;
-    for (const r of rowsArray) {
-      const v = (r[h] == null ? '' : String(r[h]));
-      if (v.length > maxLen) maxLen = v.length;
-    }
-    sheet.column(idx + 1).width(Math.min(Math.max(10, maxLen + 2), 40));
-  });
-
-  // זברה: תכלת בהיר/כהה בשורות הנתונים (החל משורה 2)
-  const lastRow = rowsArray.length + 1;
-  const LIGHT = "EAF5FF"; // תכלת בהיר
-  const DARK  = "D6ECFF"; // תכלת מעט כהה
-  for (let r = 2; r <= lastRow; r++) {
-    sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
-  }
-
-  // הורדה
-  const blob = await wb.outputAsync();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename.endsWith('.xlsx') ? filename : (filename + '.xlsx');
-  a.click();
-  URL.revokeObjectURL(a.href);
+  exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
 }
 
 // ===================== Monthly summary card (homepage) =====================
@@ -505,7 +499,6 @@ function filterPerDayByMonth(emp, ym){
   return all.filter(r=> normEmpName(r.employee)===emp && r.date.slice(0,7)===ym)
             .map(r=> ({...r, pay: r.weighted * (+ensureEmpConfig(emp).rate || 0)}));
 }
-function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode}; return m; }
 
 // פתיחת כרטיס
 function openEmployeeCard(emp){
@@ -721,7 +714,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // load previous (אם יש)
   loadLocalIfAny();
 
-  // רענון הסיכום גם אם משהו השתנה
+  // רענון הסיכום גם כשמשנים סינון עובד למעלה
   const empSelTop = document.querySelector('#employeeFilter');
   if (empSelTop) {
     empSelTop.addEventListener('change', () => {
