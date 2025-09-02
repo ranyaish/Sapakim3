@@ -119,3 +119,20 @@ label{font-size:14px;color:#334b68}
 
 /* הדגשת שורת הסיכום */
 #summaryTable tfoot td, #summaryTable tfoot th { font-weight: 800; }
+
+/* גלילה אופקית לטבלאות בתוך עטיפה */
+.tablewrap {
+  overflow-x: auto;   /* חשוב */
+  overflow-y: hidden; /* אופציונלי, כדי למנוע פס גלילה אנכי מיותר */
+}
+
+/* ודא שלטבלה יש מינימום רוחב כדי שתופיע גלילה אם צריך */
+#summaryTable {
+  min-width: 1100px; /* תוכל להגדיל/להקטין לפי כמות העמודות */
+}
+
+/* (לא חובה) שמור את הכותרת לא דביקה כדי שלא תכסה שמות עובדים */
+#summaryTable thead th {
+  position: static;
+  top: auto;
+}
