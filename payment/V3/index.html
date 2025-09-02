@@ -6,20 +6,24 @@
   <title>אפליקציית חישוב משכורות</title>
 
   <!-- Version marker -->
-  <meta name="version" content="v1.5" />
+  <meta name="version" content="v1.7" />
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
 
-  <!-- קבצים חיצוניים עם query param לעקיפת קאש -->
-  <link rel="stylesheet" href="./styles.css?v=1.5" />
+  <!-- עקיפת קאש לקבצים חיצוניים -->
+  <link rel="stylesheet" href="./styles.css?v=1.7" />
 
-  <!-- SheetJS -->
+  <!-- ספריות -->
+  <!-- SheetJS לקריאה בלבד -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <!-- App הראשי שלך -->
-  <script src="./app.js?v=1.5" defer></script>
+  <!-- XlsxPopulate לכתיבת XLSX עם עיצוב -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js" defer></script>
 
-  <!-- כלל קטן כדי שהכותרת בטבלת הסיכום לא תהיה דביקה -->
+  <!-- קובץ האפליקציה -->
+  <script src="./app.js?v=1.7" defer></script>
+
+  <!-- כדי שהכותרת בסיכום לא תהיה דביקה -->
   <style>
     #summaryTable thead th { position: static; top: auto; }
     #summaryTable tfoot th, #summaryTable tfoot td { font-weight: 800; }
@@ -29,7 +33,7 @@
 <header>
   <h1>
     אפליקציית חישוב משכורות
-    <span style="font-size:12px;color:#888">גרסה v1.5</span>
+    <span style="font-size:12px;color:#888">גרסה v1.7</span>
   </h1>
 </header>
 
@@ -47,8 +51,8 @@
       </div>
       <div class="col btns">
         <button id="openCardBtn" class="btn alt" disabled>פתח כרטיס עובד</button>
-        <button id="exportDaily" class="btn" disabled>ייצוא פירוט יומי (CSV)</button>
-        <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (CSV)</button>
+        <button id="exportDaily" class="btn" disabled>ייצוא פירוט יומי (XLSX)</button>
+        <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (XLSX)</button>
       </div>
       <div class="col btns">
         <button id="exportJSON" class="btn alt" disabled>ייצוא JSON (סשן)</button>
@@ -77,12 +81,12 @@
             <th>150%</th>
             <th>שבת 150%</th>
             <th>שעות משוקללות</th>
-            <th>שכר בסיס (₪)</th>
-            <th>נסיעות (₪)</th>
-            <th>טיפים (₪)</th>
-            <th>תוספת (₪)</th>
-            <th>החזר מקדמה (₪-)</th>
-            <th>שכר ברוטו (₪)</th>
+            <th>שכר בסיס</th>
+            <th>נסיעות</th>
+            <th>טיפים</th>
+            <th>תוספת</th>
+            <th>החזר מקדמה</th>
+            <th>שכר ברוטו</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -123,7 +127,7 @@
                 </select>
               </div>
               <div class="sumrow">
-                <label>שכר לשעה (₪)</label>
+                <label>שכר לשעה</label>
                 <input id="empRate" type="number" step="0.01" class="inp narrow" />
               </div>
             </div>
@@ -135,14 +139,14 @@
             </div>
           </div>
 
-          <!-- TAB: פירוט יומי + סעיפי שכר -->
+          <!-- TAB: פירוט יומי + סעיפים -->
           <div id="panel-daily" style="display:none">
             <div class="pill" style="margin-bottom:8px">סעיפי שכר לחודש הנבחר</div>
             <div class="sumbox" style="margin-bottom:10px">
-              <div class="sumrow"><label>נסיעות (₪)</label><input id="extra_travel" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>טיפים (₪)</label><input id="extra_tips" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>תוספת שכר (₪)</label><input id="extra_bonus" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>החזר מקדמה (₪-)</label><input id="extra_advance" type="number" step="0.01" class="inp narrow" /></div>
+              <div class="sumrow"><label>נסיעות</label><input id="extra_travel" type="number" step="0.01" class="inp narrow" /></div>
+              <div class="sumrow"><label>טיפים</label><input id="extra_tips" type="number" step="0.01" class="inp narrow" /></div>
+              <div class="sumrow"><label>תוספת שכר</label><input id="extra_bonus" type="number" step="0.01" class="inp narrow" /></div>
+              <div class="sumrow"><label>החזר מקדמה</label><input id="extra_advance" type="number" step="0.01" class="inp narrow" /></div>
               <button id="saveExtrasBtn" class="btn" style="margin-top:8px">שמירה</button>
             </div>
 
@@ -206,152 +210,5 @@
     </div>
   </div>
 </div>
-
-<!-- ====== רינדור סיכום חודשי מתוך הדף (גם אם app.js לא עודכן) ====== -->
-<script>
-  // מוודא שתמיד יש לנו formatter
-  const __fmt2 = n => (Math.round((+n||0)*100)/100).toFixed(2);
-
-  function __computeSummaryRowsInline() {
-    // מסתמך על משתנים ופונקציות גלובליים שכבר קיימים ב-app.js:
-    // perDayBase, empConfig, applyOvertime, ensureEmpConfig, normEmpName, mapConfigMode
-    if (typeof perDayBase === 'undefined' || typeof empConfig === 'undefined' || typeof applyOvertime === 'undefined') return [];
-
-    // מפה מצומצמת למוד
-    const mapConfigModeInline = (cfg) => {
-      const m = {};
-      for (const k in cfg) { m[k] = { mode: cfg[k].mode }; }
-      return m;
-    };
-
-    const rowsBase = applyOvertime(perDayBase, (typeof mapConfigMode !== 'undefined' ? mapConfigMode(empConfig) : mapConfigModeInline(empConfig)))
-      .map(r => ({...r, employee: (typeof normEmpName==='function'? normEmpName(r.employee) : String(r.employee||'').trim())}));
-
-    const byEmp = new Map();
-    for (const r of rowsBase) {
-      const emp = r.employee;
-      const obj = byEmp.get(emp) || {
-        employee: emp, total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0, basePay:0,
-        travel:0, tips:0, bonus:0, advance:0, finalPay:0
-      };
-      obj.total += r.total; obj.reg += r.reg; obj.ot125 += r.ot125; obj.ot150 += r.ot150;
-      obj.shabbat150 += r.shabbat150; obj.weighted += r.weighted;
-      const rate = (typeof ensureEmpConfig==='function' ? (+ensureEmpConfig(emp).rate||0) : (+((empConfig[emp]||{}).rate)||0));
-      obj.basePay += r.weighted * rate;
-      byEmp.set(emp, obj);
-    }
-
-    // הוספת סעיפים
-    for (const [emp, obj] of byEmp) {
-      const exmap = (empConfig[emp] && empConfig[emp].extras) ? empConfig[emp].extras : {};
-      let t=0, ti=0, b=0, a=0;
-      for (const k in exmap) {
-        if (k === '__default') continue;
-        const v = exmap[k] || {};
-        t += +(v.travel||0); ti += +(v.tips||0); b += +(v.bonus||0); a += +(v.advance||0);
-      }
-      if (t===0 && ti===0 && b===0 && a===0 && exmap.__default) {
-        t += +(exmap.__default.travel||0);
-        ti += +(exmap.__default.tips||0);
-        b += +(exmap.__default.bonus||0);
-        a += +(exmap.__default.advance||0);
-      }
-      obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a;
-      obj.finalPay = obj.basePay + t + ti + b - a;
-    }
-
-    return Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee));
-  }
-
-  function __renderMonthlySummaryCardInline() {
-    const tbody = document.querySelector('#summaryTable tbody');
-    const tfootRow = document.querySelector('#summaryTotalsRow');
-    if (!tbody || !tfootRow) return;
-
-    const rows = __computeSummaryRowsInline();
-    tbody.innerHTML = '';
-
-    const totals = { employee:'סה״כ', total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0,
-                     basePay:0, travel:0, tips:0, bonus:0, advance:0, finalPay:0 };
-
-    for (const r of rows) {
-      totals.total += r.total;
-      totals.reg += r.reg;
-      totals.ot125 += r.ot125;
-      totals.ot150 += r.ot150;
-      totals.shabbat150 += r.shabbat150;
-      totals.weighted += r.weighted;
-      totals.basePay += r.basePay;
-      totals.travel += r.travel;
-      totals.tips += r.tips;
-      totals.bonus += r.bonus;
-      totals.advance += r.advance;
-      totals.finalPay += r.finalPay;
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${r.employee}</td>
-        <td>${__fmt2(r.total)}</td>
-        <td>${__fmt2(r.reg)}</td>
-        <td>${__fmt2(r.ot125)}</td>
-        <td>${__fmt2(r.ot150)}</td>
-        <td>${__fmt2(r.shabbat150)}</td>
-        <td>${__fmt2(r.weighted)}</td>
-        <td>${__fmt2(r.basePay)}</td>
-        <td>${__fmt2(r.travel)}</td>
-        <td>${__fmt2(r.tips)}</td>
-        <td>${__fmt2(r.bonus)}</td>
-        <td>${__fmt2(r.advance)}</td>
-        <td>${__fmt2(r.finalPay)}</td>`;
-      tbody.appendChild(tr);
-    }
-
-    tfootRow.innerHTML = `
-      <th>${totals.employee}</th>
-      <td>${__fmt2(totals.total)}</td>
-      <td>${__fmt2(totals.reg)}</td>
-      <td>${__fmt2(totals.ot125)}</td>
-      <td>${__fmt2(totals.ot150)}</td>
-      <td>${__fmt2(totals.shabbat150)}</td>
-      <td>${__fmt2(totals.weighted)}</td>
-      <td>${__fmt2(totals.basePay)}</td>
-      <td>${__fmt2(totals.travel)}</td>
-      <td>${__fmt2(totals.tips)}</td>
-      <td>${__fmt2(totals.bonus)}</td>
-      <td>${__fmt2(totals.advance)}</td>
-      <td>${__fmt2(totals.finalPay)}</td>`;
-  }
-
-  // חיבורי רענון — גם אם app.js לא קורא לנו:
-  document.addEventListener('DOMContentLoaded', () => {
-    // רנדר ראשון (וגם דחוי מעט למקרה שהקובץ עוד נטען)
-    __renderMonthlySummaryCardInline();
-    setTimeout(__renderMonthlySummaryCardInline, 400);
-    setTimeout(__renderMonthlySummaryCardInline, 1200);
-
-    // כשבוחרים קובץ חדש
-    const fileInp = document.getElementById('file');
-    if (fileInp) fileInp.addEventListener('change', ()=> setTimeout(__renderMonthlySummaryCardInline, 300));
-
-    // טעינת JSON
-    const importFile = document.getElementById('importJSONFile');
-    if (importFile) importFile.addEventListener('change', ()=> setTimeout(__renderMonthlySummaryCardInline, 300));
-
-    // שמירת סעיפים מהמודאל
-    document.body.addEventListener('click', (e)=>{
-      if (e.target && e.target.id === 'saveExtrasBtn') {
-        setTimeout(__renderMonthlySummaryCardInline, 50);
-      }
-    });
-
-    // גיבוי: רענון קל גם כשעוברים בין טאבים בכרטיס עובד
-    ['empMode','empRate','empMonthSel'].forEach(id=>{
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('change', ()=> setTimeout(__renderMonthlySummaryCardInline, 100));
-      if (id==='empRate' && el) el.addEventListener('input', ()=> setTimeout(__renderMonthlySummaryCardInline, 150));
-    });
-  });
-</script>
-
 </body>
 </html>
