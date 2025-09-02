@@ -8,37 +8,34 @@ const hours = (ms) => ms/36e5;
 const two = n => String(n).padStart(2,'0');
 const hhmm = d => two(d.getHours())+':'+two(d.getMinutes());
 const wdHe = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
-const STORAGE_KEY = 'payrollSessionV8';
+const STORAGE_KEY = 'payrollSessionV9';
 function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
-
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
 
-// תאריכים – תמיכה בפורמטים אמיתיים בלבד (ללא fallback כללי)
+// ===================== Date parsing (strict) =====================
 function parseHebDateTime(s){
   if(!s) return null;
   if(s instanceof Date) return isNaN(s) ? null : s;
   s = String(s).trim();
 
-  // 1) dd/mm/yyyy hh:mm[:ss] או dd.mm.yyyy hh:mm[:ss]
+  // dd/mm/yyyy hh:mm[:ss] או dd.mm.yyyy hh:mm[:ss]
   let m = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if(m){
     const d=+m[1], mo=+m[2], y=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0);
     const dt = new Date(y,mo-1,d,h,mi,se);
     return isNaN(dt) ? null : dt;
   }
-
-  // 2) ISO: yyyy-mm-dd[ T]hh:mm[:ss]
+  // ISO: yyyy-mm-dd[ T]hh:mm[:ss]
   m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
   if(m){
     const y=+m[1], mo=+m[2], d=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0);
     const dt = new Date(y,mo-1,d,h,mi,se);
     return isNaN(dt) ? null : dt;
   }
-
   return null;
 }
 
-// ===================== Parsing workbook =====================
+// ===================== Read workbook (all sheets + NBSP clean) =====================
 async function readWorkbook(file){
   const ext = file.name.toLowerCase().split('.').pop();
   const reader = new FileReader();
@@ -46,58 +43,65 @@ async function readWorkbook(file){
   if(ext==='csv') reader.readAsText(file);
   else reader.readAsArrayBuffer(file);
   const data = await load;
-  const wb = (ext==='csv') ? XLSX.read(data, {type:'string', raw:false})
-                           : XLSX.read(data, {type:'array', raw:false});
-  const sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
-  return rows;
+
+  const wb = (ext==='csv')
+    ? XLSX.read(data, {type:'string', raw:false})
+    : XLSX.read(data, {type:'array',  raw:false});
+
+  const allRows = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
+    for (const row of rows) {
+      allRows.push((row || []).map(x => String(x ?? '').replace(/\u00A0/g, ' ').trim()));
+    }
+    allRows.push([]); // separator between sheets
+  }
+  return allRows;
 }
 
-// מזהה בלוקים של טבלת משמרות, עוצר על סיכומים/כותרות, ומסנן כפילויות
+// ===================== Parse punches (flex headers + strong stops + dedupe) =====================
 function parsePunches(rows){
-  const titleRe = /דו"ח שעות עבודה עבור\s+(.+?)\s+בין/;
+  const titleRe = /דו"ח\s*שעות\s*עבודה\s*עבור\s+(.+?)\s+בין/;
   let currentEmp = null, inTable = false;
   const punches = [];
   const seen = new Set(); // emp|inISO|outISO
 
-  for(const row of rows){
-    const r = (row||[]).map(x=> x==null? "" : String(x).trim());
-    if(r.length === 0) continue;
+  const isHeaderRow = (r) => {
+    const joined = r.join(' ');
+    return /שעת.?הגעה/.test(joined) && /שעת.?עזיבה/.test(joined) && /יום/.test(joined);
+  };
+  const isStopRow = (r) => {
+    const c0 = r[0] || '';
+    const joined = r.join(' ');
+    return (
+      c0.startsWith('סה"כ שעות') ||
+      c0.startsWith('מספר ימי עבודה') ||
+      c0.startsWith('אחוזי שכר') ||
+      /דו"ח\s*שעות\s*עבודה\s*עבור/.test(joined) ||
+      r.every(c => !c)
+    );
+  };
 
-    // כותרת עובד
-    if(r[0]){
+  for (const row of rows){
+    const r = (row || []).map(x => String(x ?? '').trim());
+    if (r.length === 0) continue;
+
+    if (r[0]) {
       const m = r[0].match(titleRe);
-      if(m){ currentEmp = normEmpName(m[1]); inTable=false; continue; }
+      if (m) { currentEmp = normEmpName(m[1]); inTable = false; continue; }
     }
+    if (!inTable && isHeaderRow(r)) { inTable = true; continue; }
 
-    // התחלת טבלה
-    if(!inTable && r.includes('שעת הגעה') && r.includes('שעת עזיבה') && r.includes('יום')){
-      inTable = true;
-      continue;
-    }
-
-    if(inTable){
-      const cell0 = r[0]||'';
-      // תנאי עצירה חזקים
-      if (
-        cell0.startsWith('סה"כ שעות') ||
-        cell0.startsWith('מספר ימי עבודה') ||
-        cell0.startsWith('אחוזי שכר') ||
-        cell0.includes('דו"ח שעות עבודה עבור') ||
-        r.every(c => c==='') // שורה ריקה
-      ){
-        inTable = false;
-        continue;
-      }
+    if (inTable) {
+      if (isStopRow(r)) { inTable = false; continue; }
 
       const din = parseHebDateTime(r[0]);
       const dout= parseHebDateTime(r[1]);
-
-      if(din && dout && currentEmp){
+      if (din && dout && currentEmp) {
         const key = `${currentEmp}|${din.toISOString()}|${dout.toISOString()}`;
-        if(!seen.has(key)){
-          punches.push({employee: currentEmp, dtIn: din, dtOut: dout});
+        if (!seen.has(key)) {
+          punches.push({ employee: currentEmp, dtIn: din, dtOut: dout });
           seen.add(key);
         }
       }
@@ -191,7 +195,7 @@ function serializeSession(){
     dtInISO: new Date(p.dtIn).toISOString(),
     dtOutISO: new Date(p.dtOut).toISOString()
   }));
-  return { __kind:"payroll-session", version:8, savedAt:new Date().toISOString(), empConfig, punches:punchesISO, ui:{employeeFilter:selEmp} };
+  return { __kind:"payroll-session", version:9, savedAt:new Date().toISOString(), empConfig, punches:punchesISO, ui:{employeeFilter:selEmp} };
 }
 function reviveSession(obj){
   if(!obj || obj.__kind!=='payroll-session' || !Array.isArray(obj.punches)) throw new Error('קובץ JSON אינו בפורמט הנכון');
@@ -734,7 +738,6 @@ async function handleFile(ev){
 
     if(punches.length===0){ alert('לא נמצאו נתוני משמרות בקובץ.'); return; }
     perDayBase = buildDailyBase(punches);
-    // ודא שיש קונפיג לכל עובד
     for(const e of new Set(perDayBase.map(r=>normEmpName(r.employee)))) ensureEmpConfig(e);
     renderEmployeeSelect();
     renderMonthlySummaryCard();
@@ -748,10 +751,8 @@ function openCardFromSelect(){
 }
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  // file
   $('#file').addEventListener('change', handleFile);
 
-  // top actions
   $('#exportDaily').addEventListener('click', exportDaily);
   $('#exportSummary').addEventListener('click', exportSummary);
   $('#exportJSON').addEventListener('click', ()=>{
@@ -776,7 +777,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // load previous (אם יש)
   loadLocalIfAny();
 
-  // רענון הסיכום גם כשמשנים סינון עובד למעלה
+  // עדכון סיכום בעת שינוי סינון עובד למעלה
   const empSelTop = document.querySelector('#employeeFilter');
   if (empSelTop) {
     empSelTop.addEventListener('change', () => {
