@@ -8,17 +8,34 @@ const hours = (ms) => ms/36e5;
 const two = n => String(n).padStart(2,'0');
 const hhmm = d => two(d.getHours())+':'+two(d.getMinutes());
 const wdHe = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
-const STORAGE_KEY = 'payrollSessionV7';
+const STORAGE_KEY = 'payrollSessionV8';
 function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
 
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
+
+// תאריכים – תמיכה בפורמטים אמיתיים בלבד (ללא fallback כללי)
 function parseHebDateTime(s){
   if(!s) return null;
-  if(s instanceof Date) return s;
+  if(s instanceof Date) return isNaN(s) ? null : s;
   s = String(s).trim();
-  const m = s.match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if(m){ const d=+m[1], mo=+m[2], y=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0); return new Date(y,mo-1,d,h,mi,se); }
-  const d = new Date(s); return isNaN(d) ? null : d;
+
+  // 1) dd/mm/yyyy hh:mm[:ss] או dd.mm.yyyy hh:mm[:ss]
+  let m = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(m){
+    const d=+m[1], mo=+m[2], y=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0);
+    const dt = new Date(y,mo-1,d,h,mi,se);
+    return isNaN(dt) ? null : dt;
+  }
+
+  // 2) ISO: yyyy-mm-dd[ T]hh:mm[:ss]
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if(m){
+    const y=+m[1], mo=+m[2], d=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0);
+    const dt = new Date(y,mo-1,d,h,mi,se);
+    return isNaN(dt) ? null : dt;
+  }
+
+  return null;
 }
 
 // ===================== Parsing workbook =====================
@@ -36,22 +53,54 @@ async function readWorkbook(file){
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
   return rows;
 }
+
+// מזהה בלוקים של טבלת משמרות, עוצר על סיכומים/כותרות, ומסנן כפילויות
 function parsePunches(rows){
   const titleRe = /דו"ח שעות עבודה עבור\s+(.+?)\s+בין/;
-  let currentEmp = null, inTable = false; const punches = [];
+  let currentEmp = null, inTable = false;
+  const punches = [];
+  const seen = new Set(); // emp|inISO|outISO
+
   for(const row of rows){
     const r = (row||[]).map(x=> x==null? "" : String(x).trim());
-    if(!r.length) continue;
+    if(r.length === 0) continue;
+
+    // כותרת עובד
     if(r[0]){
       const m = r[0].match(titleRe);
       if(m){ currentEmp = normEmpName(m[1]); inTable=false; continue; }
     }
-    if(r.includes('שעת הגעה') && r.includes('שעת עזיבה') && r.includes('יום')){ inTable = true; continue; }
+
+    // התחלת טבלה
+    if(!inTable && r.includes('שעת הגעה') && r.includes('שעת עזיבה') && r.includes('יום')){
+      inTable = true;
+      continue;
+    }
+
     if(inTable){
-      if((r[0]||'').startsWith('סה"כ שעות עד') || r[0]==='סה"כ שעות'){ inTable=false; continue; }
+      const cell0 = r[0]||'';
+      // תנאי עצירה חזקים
+      if (
+        cell0.startsWith('סה"כ שעות') ||
+        cell0.startsWith('מספר ימי עבודה') ||
+        cell0.startsWith('אחוזי שכר') ||
+        cell0.includes('דו"ח שעות עבודה עבור') ||
+        r.every(c => c==='') // שורה ריקה
+      ){
+        inTable = false;
+        continue;
+      }
+
       const din = parseHebDateTime(r[0]);
       const dout= parseHebDateTime(r[1]);
-      if(din && dout && currentEmp){ punches.push({employee: currentEmp, dtIn: din, dtOut: dout}); }
+
+      if(din && dout && currentEmp){
+        const key = `${currentEmp}|${din.toISOString()}|${dout.toISOString()}`;
+        if(!seen.has(key)){
+          punches.push({employee: currentEmp, dtIn: din, dtOut: dout});
+          seen.add(key);
+        }
+      }
     }
   }
   return punches;
@@ -142,7 +191,7 @@ function serializeSession(){
     dtInISO: new Date(p.dtIn).toISOString(),
     dtOutISO: new Date(p.dtOut).toISOString()
   }));
-  return { __kind:"payroll-session", version:7, savedAt:new Date().toISOString(), empConfig, punches:punchesISO, ui:{employeeFilter:selEmp} };
+  return { __kind:"payroll-session", version:8, savedAt:new Date().toISOString(), empConfig, punches:punchesISO, ui:{employeeFilter:selEmp} };
 }
 function reviveSession(obj){
   if(!obj || obj.__kind!=='payroll-session' || !Array.isArray(obj.punches)) throw new Error('קובץ JSON אינו בפורמט הנכון');
@@ -244,9 +293,10 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
   URL.revokeObjectURL(a.href);
 }
 
-// ===================== Export XLSX =====================
+// ===================== Export helpers =====================
 function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode}; return m; }
 
+// ===================== Export XLSX =====================
 function exportDaily(){
   const selEmp = ($('#employeeFilter').value || 'ALL');
 
@@ -670,6 +720,18 @@ async function handleFile(ev){
   try{
     const rows = await readWorkbook(file);
     punches = parsePunches(rows).map(p=> ({...p, employee:normEmpName(p.employee)}));
+
+    // דה-דופליקציה גלובלית
+    {
+      const s = new Set();
+      punches = punches.filter(p=>{
+        const k = `${p.employee}|${p.dtIn.toISOString()}|${p.dtOut.toISOString()}`;
+        if(s.has(k)) return false;
+        s.add(k);
+        return true;
+      });
+    }
+
     if(punches.length===0){ alert('לא נמצאו נתוני משמרות בקובץ.'); return; }
     perDayBase = buildDailyBase(punches);
     // ודא שיש קונפיג לכל עובד
