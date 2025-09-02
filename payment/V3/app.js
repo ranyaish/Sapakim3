@@ -8,7 +8,8 @@ const hours = (ms) => ms/36e5;
 const two = n => String(n).padStart(2,'0');
 const hhmm = d => two(d.getHours())+':'+two(d.getMinutes());
 const wdHe = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
-const STORAGE_KEY = 'payrollSessionV7';
+const STORAGE_KEY = 'payrollSessionV9';
+console.log('payroll app.js v1.9.3');
 function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
 
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
@@ -23,39 +24,35 @@ function parseHebDateTime(s){
 
 // ===================== Parsing workbook =====================
 async function readWorkbook(file){
+  if (!window.XLSX) { alert('ספריית XLSX לא נטענה'); throw new Error('XLSX missing'); }
+
   const ext = file.name.toLowerCase().split('.').pop();
   const reader = new FileReader();
   const load = new Promise(res=> reader.onload = () => res(reader.result));
   if(ext==='csv') reader.readAsText(file);
   else reader.readAsArrayBuffer(file);
   const data = await load;
-  const wb = (ext==='csv') ? XLSX.read(data, {type:'string', raw:false})
-                           : XLSX.read(data, {type:'array', raw:false});
-  const sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
-  return rows;
-}
-function parsePunches(rows){
-  const titleRe = /דו"ח שעות עבודה עבור\s+(.+?)\s+בין/;
-  let currentEmp = null, inTable = false; const punches = [];
-  for(const row of rows){
-    const r = (row||[]).map(x=> x==null? "" : String(x).trim());
-    if(!r.length) continue;
-    if(r[0]){
-      const m = r[0].match(titleRe);
-      if(m){ currentEmp = normEmpName(m[1]); inTable=false; continue; }
+
+  const wb = (ext==='csv')
+    ? XLSX.read(data, {type:'string', raw:false})
+    : XLSX.read(data, {type:'array',  raw:false});
+
+  // קורא את כל הגליונות ומנקה NBSP
+  const allRows = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
+    for (const row of rows) {
+      allRows.push((row || []).map(x => String(x ?? '').replace(/\u00A0/g, ' ').trim()));
     }
-    if(r.includes('שעת הגעה') && r.includes('שעת עזיבה') && r.includes('יום')){ inTable = true; continue; }
-    if(inTable){
-      if((r[0]||'').startsWith('סה"כ שעות עד') || r[0]==='סה"כ שעות'){ inTable=false; continue; }
-      const din = parseHebDateTime(r[0]);
-      const dout= parseHebDateTime(r[1]);
-      if(din && dout && currentEmp){ punches.push({employee: currentEmp, dtIn: din, dtOut: dout}); }
-    }
+    allRows.push([]); // מפריד בין גליונות
   }
-  return punches;
+  try { console.log('[payroll] rows loaded:', allRows.length); } catch(_){}
+  return allRows;
 }
+
+
+
 
 // ===================== Core calculations =====================
 function iterateDailySegments(start, end){
@@ -91,7 +88,76 @@ function buildDailyBase(_punches){
       const iso = toISODate(seg.segStart);
       const key = emp + '|' + iso;
       const obj = base.get(key) || {employee: emp, date: iso, total:0, nonShabbat:0, shabbat150:0};
-      obj.total += total; obj.nonShabbat += nonSh; obj.shabbat150 += sh150;
+      obj.total += total; obj.nonShabbat += nonSh; obj.shabfunction parsePunches(rows){
+  const titleRe = /דו.?ח.*שעות.*עבודה.*עבור\s+(.+?)\s+בין/i;
+
+  let currentEmp = null, inTable = false;
+  const punches = [];
+  const seen = new Set();
+  let unknownCounter = 0;
+
+  const isHeaderRow = (r) => {
+    const t = r.join(' ').replace(/\u00A0/g,' ');
+    return /שעת.?הגעה/.test(t) && /שעת.?עזיבה/.test(t) && /יום/.test(t);
+  };
+  const isStopRow = (r) => {
+    const c0 = (r[0] || '');
+    const t  = r.join(' ');
+    return (
+      c0.startsWith('סה"כ שעות') ||
+      c0.startsWith('מספר ימי עבודה') ||
+      c0.startsWith('אחוזי שכר') ||
+      /דו.?ח.*שעות.*עבודה.*עבור/.test(t) ||
+      r.every(c => !c)
+    );
+  };
+
+  function lookupEmployeeNear(idx){
+    for(let i=Math.max(0, idx-10); i<idx; i++){
+      const r = rows[i] || [];
+      for(const cell of r){
+        const s = String(cell||'').trim();
+        const m = s.match(titleRe);
+        if(m) return normEmpName(m[1]);
+      }
+    }
+    unknownCounter += 1;
+    return `לא מזוהה #${unknownCounter}`;
+  }
+
+  for(let ri=0; ri<rows.length; ri++){
+    const r = (rows[ri] || []).map(x => String(x ?? '').trim());
+    if (r.length === 0) continue;
+
+    if (r[0]) {
+      const m = r[0].match(titleRe);
+      if (m){ currentEmp = normEmpName(m[1]); inTable = false; continue; }
+    }
+
+    if (!inTable && isHeaderRow(r)) {
+      inTable = true;
+      if(!currentEmp) currentEmp = lookupEmployeeNear(ri);
+      continue;
+    }
+
+    if (inTable) {
+      if (isStopRow(r)) { inTable = false; currentEmp = null; continue; }
+
+      const din = parseHebDateTime(r[0]);
+      const dout= parseHebDateTime(r[1]);
+      if (din && dout) {
+        const emp = currentEmp || lookupEmployeeNear(ri);
+        const key = `${emp}|${din.toISOString()}|${dout.toISOString()}`;
+        if (!seen.has(key)) {
+          punches.push({ employee: emp, dtIn: din, dtOut: dout });
+          seen.add(key);
+        }
+      }
+    }
+  }
+  try { console.log('[payroll] punches parsed:', punches.length); } catch(_){}
+  return punches;
+}bat150 += sh150;
       base.set(key, obj);
     }
   }
