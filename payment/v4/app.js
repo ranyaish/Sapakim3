@@ -70,71 +70,119 @@ async function readWorkbook(file){
 }
 
 //// ===================== Parse punches (robust + fallback) =====================
+// ---------- מחליף את parsePunches הקיים ----------
 function parsePunches(rows){
-  const titleRe = /דו.?ח.*שעות.*עבודה.*עבור\s+(.+?)\s+בין/i;
-  let currentEmp = null, inTable = false;
-  const punches = [];
-  const seen = new Set();
-  let unknownCounter = 0;
+  // מנרמל מחרוזות (מסיר ‎NBSP / RTL, מקצר רווחים)
+  const norm = s => String(s ?? '')
+    .replace(/\u00A0/g,' ')
+    .replace(/\u200f|\u200e/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
 
-  const isHeaderRow = (r) => {
-    const t = r.join(' ').replace(/\u00A0/g,' ');
-    return /שעת.?הגעה/.test(t) && /שעת.?עזיבה/.test(t) && /יום/.test(t);
-  };
-  const isStopRow = (r) => {
-    const c0 = (r[0] || '');
-    const t  = r.join(' ');
-    return (
-      c0.startsWith('סה"כ שעות') ||
-      c0.startsWith('מספר ימי עבודה') ||
-      c0.startsWith('אחוזי שכר') ||
-      /דו.?ח.*שעות.*עבודה.*עבור/.test(t) ||
-      r.every(c => !c)
-    );
-  };
-  function lookupEmployeeNear(idx){
-    for(let i=Math.max(0,idx-10); i<idx; i++){
-      const r = rows[i] || [];
-      for(const cell of r){
-        const s = String(cell||'').trim();
-        const m = s.match(titleRe);
-        if(m) return normEmpName(m[1]);
-      }
-    }
-    unknownCounter += 1;
-    return `לא מזוהה #${unknownCounter}`;
+  // "דו"ח שעות עבודה עבור <שם> בין ..." – מאפשר גם ל- / ל־ וניסוחים קרובים
+  const titleRe = /דו.?ח.*שעות.*עבודה.*עבור\s+(.+?)\s+בין/i;
+
+  // מזהה שורת כותרת ומחזיר את אינדקסי העמודות (כניסה/יציאה/יום)
+  function findHeaderIndices(row){
+    const cols = row.map(c => norm(c));
+    const idxIn  = cols.findIndex(c => /(שעת\s*הגעה|כניסה)/.test(c));
+    const idxOut = cols.findIndex(c => /(שעת\s*עזיבה|יציאה)/.test(c));
+    const idxDay = cols.findIndex(c => /\bיום\b/.test(c));
+    if (idxIn !== -1 && idxOut !== -1) return { idxIn, idxOut, idxDay };
+    return null;
   }
 
-  for(let ri=0; ri<rows.length; ri++){
-    const r = (rows[ri] || []).map(x => String(x ?? '').trim());
-    if (r.length === 0) continue;
+  // תנאי עצירה לטבלה
+  function isStopRow(row){
+    const t = norm(row.join(' '));
+    const c0 = norm(row[0] || '');
+    return (
+      t === '' ||
+      /^סה"?כ\s*שעות/.test(c0) ||
+      /^מספר\s*ימי\s*עבודה/.test(c0) ||
+      /אחוזי\s*שכר/.test(t) ||
+      titleRe.test(c0) // התחלה של דו"ח חדש
+    );
+  }
 
-    if (r[0]) {
-      const m = r[0].match(titleRe);
-      if (m){ currentEmp = normEmpName(m[1]); inTable = false; continue; }
+  // מחפש סביב שורה i את שם העובד האחרון שהופיע בכותרת
+  function lookupEmployeeNear(idx){
+    for(let i=Math.max(0, idx-10); i<idx; i++){
+      for(const cell of (rows[i]||[])){
+        const s = norm(cell);
+        const m = s.match(titleRe);
+        if (m) return normEmpName(m[1]);
+      }
     }
-    if (!inTable && isHeaderRow(r)) {
-      inTable = true;
-      if(!currentEmp) currentEmp = lookupEmployeeNear(ri);
+    return null;
+  }
+
+  let currentEmp = null;
+  let inTable = false;
+  let hdr = null; // {idxIn, idxOut, idxDay}
+  const punches = [];
+  const seen = new Set(); // למניעת כפולים
+
+  for (let rIdx = 0; rIdx < rows.length; rIdx++){
+    const row = rows[rIdx] || [];
+    const r0 = norm(row[0] || '');
+
+    // כותרת דו"ח -> קובע עובד פעיל
+    if (r0){
+      const m = r0.match(titleRe);
+      if (m){
+        currentEmp = normEmpName(m[1]);
+        inTable = false;
+        hdr = null;
+        continue;
+      }
+    }
+
+    // טרם בתוך טבלה? נסה לזהות כותרת
+    if (!inTable){
+      const maybeHdr = findHeaderIndices(row);
+      if (maybeHdr){
+        inTable = true;
+        hdr = maybeHdr;
+        if (!currentEmp){
+          const found = lookupEmployeeNear(rIdx);
+          if (found) currentEmp = found;
+        }
+        continue;
+      }
+      // לא כותרת – ממשיכים
       continue;
     }
-    if (inTable) {
-      if (isStopRow(r)) { inTable = false; currentEmp = null; continue; }
-      const din = parseHebDateTime(r[0]);
-      const dout= parseHebDateTime(r[1]);
-      if (din && dout) {
-        const emp = currentEmp || lookupEmployeeNear(ri);
-        const key = `${emp}|${din.toISOString()}|${dout.toISOString()}`;
-        if (!seen.has(key)) {
-          punches.push({ employee: emp, dtIn: din, dtOut: dout });
-          seen.add(key);
-        }
+
+    // בתוך טבלה
+    if (isStopRow(row)){
+      inTable = false;
+      hdr = null;
+      currentEmp = null; // יזוהה שוב לפי הכותרת הבאה
+      continue;
+    }
+
+    // קורא תאים לפי האינדקסים שמצאנו בכותרת
+    const inVal  = row[hdr.idxIn];
+    const outVal = row[hdr.idxOut];
+
+    const din  = parseHebDateTime(inVal);
+    const dout = parseHebDateTime(outVal);
+
+    if (din && dout){
+      const emp = currentEmp || lookupEmployeeNear(rIdx) || 'לא מזוהה';
+      const key = `${normEmpName(emp)}|${din.toISOString()}|${dout.toISOString()}`;
+      if (!seen.has(key)){
+        punches.push({ employee: normEmpName(emp), dtIn: din, dtOut: dout });
+        seen.add(key);
       }
     }
   }
-  log(`[payroll] punches parsed: ${punches.length}`);
+
+  try { console.log('[payroll] punches parsed:', punches.length); } catch(_){}
   return punches;
 }
+
 
 function parsePunchesFallback(rows){
   const out = [];
