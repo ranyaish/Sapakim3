@@ -8,7 +8,8 @@ const hours = (ms) => ms/36e5;
 const two = n => String(n).padStart(2,'0');
 const hhmm = d => two(d.getHours())+':'+two(d.getMinutes());
 const wdHe = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
-const STORAGE_KEY = 'payrollSessionV6';
+const STORAGE_KEY = 'payrollSessionV7';
+function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
 
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
 function parseHebDateTime(s){
@@ -19,7 +20,6 @@ function parseHebDateTime(s){
   if(m){ const d=+m[1], mo=+m[2], y=+m[3], h=+m[4], mi=+m[5], se=+(m[6]||0); return new Date(y,mo-1,d,h,mi,se); }
   const d = new Date(s); return isNaN(d) ? null : d;
 }
-function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
 
 // ===================== Parsing workbook =====================
 async function readWorkbook(file){
@@ -142,7 +142,7 @@ function serializeSession(){
     dtInISO: new Date(p.dtIn).toISOString(),
     dtOutISO: new Date(p.dtOut).toISOString()
   }));
-  return { __kind:"payroll-session", version:6, savedAt:new Date().toISOString(), empConfig, punches:punchesISO, ui:{employeeFilter:selEmp} };
+  return { __kind:"payroll-session", version:7, savedAt:new Date().toISOString(), empConfig, punches:punchesISO, ui:{employeeFilter:selEmp} };
 }
 function reviveSession(obj){
   if(!obj || obj.__kind!=='payroll-session' || !Array.isArray(obj.punches)) throw new Error('קובץ JSON אינו בפורמט הנכון');
@@ -151,22 +151,14 @@ function reviveSession(obj){
   for(const [k,v] of Object.entries(obj.empConfig||{})){
     const emp = normEmpName(k);
     const cfg = {mode:(v.mode||'A'), rate:+(v.rate||0), extras:{}};
-    if(v.extras && (typeof v.extras.travel === 'number' || typeof v.extras.tips === 'number' || typeof v.extras.bonus === 'number' || typeof v.extras.advance === 'number')){
-      cfg.extras.__default = { travel:+(v.extras.travel||0), tips:+(v.extras.tips||0), bonus:+(v.extras.bonus||0), advance:+(v.extras.advance||0) };
-    }
     if(v.extras && typeof v.extras === 'object'){
       for(const [kk,vv] of Object.entries(v.extras)){
-        if(kk==='__default') continue;
-        if(vv && typeof vv==='object'){
-          cfg.extras[kk] = {travel:+(vv.travel||0), tips:+(vv.tips||0), bonus:+(vv.bonus||0), advance:+(vv.advance||0)};
-        }
-      }
-      if(v.extras.__default && !cfg.extras.__default){
-        cfg.extras.__default = {
-          travel:+(v.extras.__default.travel||0),
-          tips:+(v.extras.__default.tips||0),
-          bonus:+(v.extras.__default.bonus||0),
-          advance:+(v.extras.__default.advance||0)
+        if(!vv) continue;
+        cfg.extras[kk] = {
+          travel:+(vv.travel||0),
+          tips:+(vv.tips||0),
+          bonus:+(vv.bonus||0),
+          advance:+(vv.advance||0)
         };
       }
     }
@@ -174,13 +166,14 @@ function reviveSession(obj){
   }
   perDayBase = buildDailyBase(punches);
   renderEmployeeSelect();
+  renderMonthlySummaryCard();
   saveLocal();
 }
 function saveLocal(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeSession())); }catch(e){} }
 function loadLocalIfAny(){ try{ const raw = localStorage.getItem(STORAGE_KEY); if(raw) reviveSession(JSON.parse(raw)); }catch(e){} }
 function clearLocal(){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} }
 
-// ===================== UI: top selector only =====================
+// ===================== UI: top selector =====================
 function renderEmployeeSelect(){
   const fsel = $('#employeeFilter');
   if(!fsel) return;
@@ -193,43 +186,112 @@ function renderEmployeeSelect(){
   $('#openCardBtn').disabled = emps.length===0;
 }
 
-// ===================== Export CSV =====================
-function toCSV(rows, headers){
-  const esc = s => '"'+String(s).replace(/"/g,'""')+'"';
-  const lines = [headers.map(esc).join(',')];
-  for(const r of rows){ lines.push(headers.map(h=> esc(r[h] ?? '')).join(',')); }
-  return lines.join('\n');
-}
-function downloadCSV(name, csv){
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
-}
-function exportDaily(){
-  const selEmp = $('#employeeFilter').value || 'ALL';
-  if(selEmp==='ALL'){
-    const rows = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=> ({
-      employee:normEmpName(r.employee), date:r.date, total:fmt2(r.total), reg_100:fmt2(r.reg), ot_125:fmt2(r.ot125), ot_150:fmt2(r.ot150),
-      shabbat_150:fmt2(r.shabbat150), weighted_hours:fmt2(r.weighted), hourly_rate:(+ensureEmpConfig(r.employee).rate||0),
-      pay: fmt2(r.weighted * (+ensureEmpConfig(r.employee).rate||0))
-    }));
-    const csv = toCSV(rows, ['employee','date','total','reg_100','ot_125','ot_150','shabbat_150','weighted_hours','hourly_rate','pay']);
-    downloadCSV('per_day.csv', csv);
-  } else {
-    const rows = punches
-      .filter(p=> normEmpName(p.employee)===selEmp)
-      .sort((a,b)=> +a.dtIn - +b.dtIn)
-      .map(p=> ({
-        date: toISODate(p.dtIn), weekday: wdHe(p.dtIn.getDay()),
-        time_in: hhmm(p.dtIn), time_out: hhmm(p.dtOut),
-        total_hours: fmt2(hours(p.dtOut - p.dtIn))
-      }));
-    const csv = toCSV(rows, ['date','weekday','time_in','time_out','total_hours']);
-    downloadCSV(`per_day_${selEmp}.csv`, csv);
+// ===================== XLSX helpers (Bold header) =====================
+async function exportXlsx(filename, headersHeb, rowsArray) {
+  const X = window.XlsxPopulate;
+  if (!X) { alert('XlsxPopulate לא נטען'); return; }
+
+  const wb = await X.fromBlankAsync();
+  const sheet = wb.sheet(0).name("Export");
+
+  // header
+  sheet.cell(1, 1).value([headersHeb]);
+  sheet.row(1).style({ bold: true });
+
+  // data
+  if (rowsArray.length) {
+    const dataMatrix = rowsArray.map(row => headersHeb.map(h => row[h]));
+    sheet.cell(2, 1).value(dataMatrix);
   }
+
+  // align right + auto width
+  const used = sheet.usedRange();
+  if (used) used.style({ horizontalAlignment: "right" });
+
+  headersHeb.forEach((h, idx) => {
+    let maxLen = (h || '').toString().length;
+    for (const r of rowsArray) {
+      const v = (r[h] == null ? '' : String(r[h]));
+      if (v.length > maxLen) maxLen = v.length;
+    }
+    sheet.column(idx + 1).width(Math.min(Math.max(10, maxLen + 2), 40));
+  });
+
+  const blob = await wb.outputAsync();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename.endsWith('.xlsx') ? filename : (filename + '.xlsx');
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
+
+// ===================== Export XLSX =====================
+function exportDaily(){
+  const selEmp = ($('#employeeFilter').value || 'ALL');
+
+  const perDayAll = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=>{
+    const emp = r.employee;
+    const rate = +ensureEmpConfig(emp).rate || 0;
+    const pay = r.weighted * rate;
+
+    // סעיפים חודשיים לפי YYYY-MM
+    const ym = r.date.slice(0,7);
+    const ex = getExtras(emp, ym) || {};
+    const travel  = +(ex.travel  || 0);
+    const tips    = +(ex.tips    || 0);
+    const bonus   = +(ex.bonus   || 0);
+    const advance = +(ex.advance || 0);
+    const extrasSum = travel + tips + bonus - advance;
+    const finalPay = pay + extrasSum;
+
+    return {
+      employee: emp,
+      date: r.date,
+      total: fmt2(r.total),
+      reg_100: fmt2(r.reg),
+      ot_125: fmt2(r.ot125),
+      ot_150: fmt2(r.ot150),
+      shabbat_150: fmt2(r.shabbat150),
+      weighted_hours: fmt2(r.weighted),
+      hourly_rate: rate,
+      pay: fmt2(pay),
+      travel: fmt2(travel),
+      tips: fmt2(tips),
+      bonus: fmt2(bonus),
+      advance: fmt2(advance),
+      final_pay: fmt2(finalPay)
+    };
+  });
+
+  const rows = (selEmp==='ALL') ? perDayAll : perDayAll.filter(r => r.employee === selEmp);
+
+  const headersHeb = [
+    'עובד','תאריך','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר לשעה','שכר יום','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'
+  ];
+
+  const rowsForXlsx = rows.map(r => ({
+    'עובד': r.employee,
+    'תאריך': r.date,
+    'סה"כ שעות': r.total,
+    'רגיל 100%': r.reg_100,
+    'נוספות 125%': r.ot_125,
+    'נוספות 150%': r.ot_150,
+    'שבת 150%': r.shabbat_150,
+    'שעות משוקללות': r.weighted_hours,
+    'שכר לשעה': r.hourly_rate,
+    'שכר יום': r.pay,
+    'נסיעות': r.travel,
+    'טיפים': r.tips,
+    'תוספת שכר': r.bonus,
+    'החזר מקדמה': r.advance,
+    'שכר ברוטו': r.final_pay
+  }));
+
+  exportXlsx(selEmp==='ALL' ? 'per_day.xlsx' : `per_day_${selEmp}.xlsx`, headersHeb, rowsForXlsx);
+}
+
 function exportSummary(){
-  // אגרגציה כללית + סעיפים מצטברים לכל עובד
+  // אגרגציה לכל התקופה (אפשר להוסיף סינון לפי חודש בהמשך)
   const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=>({...r, employee:normEmpName(r.employee)}));
   const byEmp = new Map();
   for(const r of perDay){
@@ -239,54 +301,154 @@ function exportSummary(){
     obj.basePay += r.weighted * (+ensureEmpConfig(emp).rate || 0);
     byEmp.set(emp, obj);
   }
-  // צרף סעיפים מכל החודשים (אם אין — נשתמש ב-__default אם קיים)
+  // סעיפים מצטברים מכל החודשים
   for(const [emp,obj] of byEmp){
-    const exmap = ensureEmpConfig(emp).extras;
+    const exmap = ensureEmpConfig(emp).extras || {};
     let t=0,ti=0,b=0,a=0;
-    for(const [k,v] of Object.entries(exmap||{})){
+    for(const [k,v] of Object.entries(exmap)){
       if(k==='__default') continue;
       t+=+(v.travel||0); ti+=+(v.tips||0); b+=+(v.bonus||0); a+=+(v.advance||0);
     }
-    if(t===0 && ti===0 && b===0 && a===0 && exmap?.__default){
+    if(t===0 && ti===0 && b===0 && a===0 && exmap.__default){
       t+=+(exmap.__default.travel||0); ti+=+(exmap.__default.tips||0); b+=+(exmap.__default.bonus||0); a+=+(exmap.__default.advance||0);
     }
     obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a;
     obj.finalPay = obj.basePay + t + ti + b - a;
   }
+
   const rows = Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee)).map(r=> ({
-    employee:r.employee,total:fmt2(r.total),reg_100:fmt2(r.reg),ot_125:fmt2(r.ot125),ot_150:fmt2(r.ot150),
-    shabbat_150:fmt2(r.shabbat150),weighted_hours:fmt2(r.weighted),base_pay:fmt2(r.basePay),
-    travel:fmt2(r.travel||0),tips:fmt2(r.tips||0),bonus:fmt2(r.bonus||0),advance:fmt2(r.advance||0),final_pay:fmt2(r.finalPay||0)
+    employee:r.employee,
+    total:fmt2(r.total),
+    reg_100:fmt2(r.reg),
+    ot_125:fmt2(r.ot125),
+    ot_150:fmt2(r.ot150),
+    shabbat_150:fmt2(r.shabbat150),
+    weighted_hours:fmt2(r.weighted),
+    base_pay:fmt2(r.basePay),
+    travel:fmt2(r.travel||0),
+    tips:fmt2(r.tips||0),
+    bonus:fmt2(r.bonus||0),
+    advance:fmt2(r.advance||0),
+    final_pay:fmt2(r.finalPay||0)
   }));
-  const csv = toCSV(rows, ['employee','total','reg_100','ot_125','ot_150','shabbat_150','weighted_hours','base_pay','travel','tips','bonus','advance','final_pay']);
-  downloadCSV('summary.csv', csv);
+
+  const headersHeb = [
+    'עובד','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר בסיס','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'
+  ];
+
+  const rowsForXlsx = rows.map(r => ({
+    'עובד': r.employee,
+    'סה"כ שעות': r.total,
+    'רגיל 100%': r.reg_100,
+    'נוספות 125%': r.ot_125,
+    'נוספות 150%': r.ot_150,
+    'שבת 150%': r.shabbat_150,
+    'שעות משוקללות': r.weighted_hours,
+    'שכר בסיס': r.base_pay,
+    'נסיעות': r.travel,
+    'טיפים': r.tips,
+    'תוספת שכר': r.bonus,
+    'החזר מקדמה': r.advance,
+    'שכר ברוטו': r.final_pay
+  }));
+
+  exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
 }
 
-// ===================== JSON Export/Import =====================
-function downloadFile(name, content, mime='application/json'){
-  const blob = new Blob([content], {type:mime});
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href);
-}
-function exportJSON(){
-  try{
-    const data = serializeSession();
-    downloadFile(`payroll_session_${(new Date).toISOString().slice(0,10)}.json`, JSON.stringify(data, null, 2));
-  }catch(e){ alert('שגיאה בייצוא הסשן'); }
-}
+// ===================== Monthly summary card (homepage) =====================
+function computeSummaryRows() {
+  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
+    .map(r => ({...r, employee: normEmpName(r.employee)}));
 
-// ===================== File Handling =====================
-async function handleFile(ev){
-  const file = ev.target.files[0]; if(!file) return;
-  try{
-    const rows = await readWorkbook(file);
-    punches = parsePunches(rows).map(p=> ({...p, employee:normEmpName(p.employee)}));
-    if(punches.length===0){ alert('לא נמצאו נתוני משמרות בקובץ.'); return; }
-    perDayBase = buildDailyBase(punches);
-    // ודא שיש קונפיג לכל עובד
-    for(const e of new Set(perDayBase.map(r=>normEmpName(r.employee)))) ensureEmpConfig(e);
-    renderEmployeeSelect();
-    saveLocal();
-  }catch(err){ console.error(err); alert('שגיאה בקריאת הקובץ'); }
+  const byEmp = new Map();
+  for (const r of perDay) {
+    const emp = r.employee;
+    const obj = byEmp.get(emp) || {
+      employee: emp, total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0, basePay:0,
+      travel:0, tips:0, bonus:0, advance:0, finalPay:0
+    };
+    obj.total += r.total; obj.reg += r.reg; obj.ot125 += r.ot125; obj.ot150 += r.ot150;
+    obj.shabbat150 += r.shabbat150; obj.weighted += r.weighted;
+    obj.basePay += r.weighted * (+ensureEmpConfig(emp).rate || 0);
+    byEmp.set(emp, obj);
+  }
+  for (const [emp, obj] of byEmp) {
+    const exmap = ensureEmpConfig(emp).extras || {};
+    let t=0, ti=0, b=0, a=0;
+    for (const [k, v] of Object.entries(exmap)) {
+      if (k === '__default') continue;
+      t += +(v.travel||0); ti += +(v.tips||0); b += +(v.bonus||0); a += +(v.advance||0);
+    }
+    if (t===0 && ti===0 && b===0 && a===0 && exmap.__default) {
+      t += +(exmap.__default.travel||0);
+      ti += +(exmap.__default.tips||0);
+      b += +(exmap.__default.bonus||0);
+      a += +(exmap.__default.advance||0);
+    }
+    obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a;
+    obj.finalPay = obj.basePay + t + ti + b - a;
+  }
+  return Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee));
+}
+function renderMonthlySummaryCard() {
+  const tbody = document.querySelector('#summaryTable tbody');
+  const tfootRow = document.querySelector('#summaryTotalsRow');
+  if (!tbody || !tfootRow) return;
+
+  const rows = computeSummaryRows();
+  tbody.innerHTML = '';
+
+  const totals = {
+    employee: 'סה״כ', total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0,
+    basePay:0, travel:0, tips:0, bonus:0, advance:0, finalPay:0
+  };
+
+  for (const r of rows) {
+    totals.total += r.total;
+    totals.reg += r.reg;
+    totals.ot125 += r.ot125;
+    totals.ot150 += r.ot150;
+    totals.shabbat150 += r.shabbat150;
+    totals.weighted += r.weighted;
+    totals.basePay += r.basePay;
+    totals.travel += r.travel;
+    totals.tips += r.tips;
+    totals.bonus += r.bonus;
+    totals.advance += r.advance;
+    totals.finalPay += r.finalPay;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.employee}</td>
+      <td>${fmt2(r.total)}</td>
+      <td>${fmt2(r.reg)}</td>
+      <td>${fmt2(r.ot125)}</td>
+      <td>${fmt2(r.ot150)}</td>
+      <td>${fmt2(r.shabbat150)}</td>
+      <td>${fmt2(r.weighted)}</td>
+      <td>${fmt2(r.basePay)}</td>
+      <td>${fmt2(r.travel)}</td>
+      <td>${fmt2(r.tips)}</td>
+      <td>${fmt2(r.bonus)}</td>
+      <td>${fmt2(r.advance)}</td>
+      <td>${fmt2(r.finalPay)}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  tfootRow.innerHTML = `
+    <th>${totals.employee}</th>
+    <td>${fmt2(totals.total)}</td>
+    <td>${fmt2(totals.reg)}</td>
+    <td>${fmt2(totals.ot125)}</td>
+    <td>${fmt2(totals.ot150)}</td>
+    <td>${fmt2(totals.shabbat150)}</td>
+    <td>${fmt2(totals.weighted)}</td>
+    <td>${fmt2(totals.basePay)}</td>
+    <td>${fmt2(totals.travel)}</td>
+    <td>${fmt2(totals.tips)}</td>
+    <td>${fmt2(totals.bonus)}</td>
+    <td>${fmt2(totals.advance)}</td>
+    <td>${fmt2(totals.finalPay)}</td>`;
 }
 
 // ===================== Employee Card (Modal) =====================
@@ -361,33 +523,41 @@ function setActiveTab(id){
     $('#panel-'+k).style.display = (k===id ? '' : 'none');
   });
 }
-$('#tab-config').onclick = ()=> setActiveTab('config');
-$('#tab-daily').onclick = ()=> setActiveTab('daily');
-$('#tab-punches').onclick = ()=> setActiveTab('punches');
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#tab-config').onclick = ()=> setActiveTab('config');
+  $('#tab-daily').onclick = ()=> setActiveTab('daily');
+  $('#tab-punches').onclick = ()=> setActiveTab('punches');
+});
 
 // שינוי חודש בכרטיס
-$('#empMonthSel').addEventListener('change', ()=>{
-  currentMonthKey = $('#empMonthSel').value || null;
-  if(!currentEmpInModal) return;
-  loadExtrasIntoForm(currentEmpInModal, currentMonthKey);
-  renderEmpDailyPanel(currentEmpInModal, currentMonthKey);
-  renderEmpPunchesPanel(currentEmpInModal, currentMonthKey);
-  updateModalTotals();
-  updateModalFinal();
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#empMonthSel').addEventListener('change', ()=>{
+    currentMonthKey = $('#empMonthSel').value || null;
+    if(!currentEmpInModal) return;
+    loadExtrasIntoForm(currentEmpInModal, currentMonthKey);
+    renderEmpDailyPanel(currentEmpInModal, currentMonthKey);
+    renderEmpPunchesPanel(currentEmpInModal, currentMonthKey);
+    updateModalTotals();
+    updateModalFinal();
+  });
 });
 
 // שינויי מצב/שכר לשעה
-$('#empMode').addEventListener('change', ()=>{
-  if(!currentEmpInModal) return;
-  ensureEmpConfig(currentEmpInModal).mode = $('#empMode').value;
-  saveLocal();
-  if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
-});
-$('#empRate').addEventListener('input', ()=>{
-  if(!currentEmpInModal) return;
-  ensureEmpConfig(currentEmpInModal).rate = +$('#empRate').value || 0;
-  saveLocal();
-  if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#empMode').addEventListener('change', ()=>{
+    if(!currentEmpInModal) return;
+    ensureEmpConfig(currentEmpInModal).mode = $('#empMode').value;
+    saveLocal();
+    if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+    renderMonthlySummaryCard();
+  });
+  $('#empRate').addEventListener('input', ()=>{
+    if(!currentEmpInModal) return;
+    ensureEmpConfig(currentEmpInModal).rate = +$('#empRate').value || 0;
+    saveLocal();
+    if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+    renderMonthlySummaryCard();
+  });
 });
 
 // ====== סעיפים (בטאב פירוט יומי) ======
@@ -406,16 +576,17 @@ function loadExtrasIntoForm(emp, ym){
   $('#extra_bonus').value = +ex.bonus || 0;
   $('#extra_advance').value = +ex.advance || 0;
 }
-$('#saveExtrasBtn').onclick = ()=>{
-  if(!currentEmpInModal){ return; }
-  if(!currentMonthKey){ alert('אין חודש נבחר.'); return; }
-  // שמירה לפי חודש
-  setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm());
-  // עדכון מיידי בכרטיס + גלובלי (ייצוא CSV/JSON יראה את זה)
-  updateModalTotals();
-  updateModalFinal();
-  saveLocal();
-};
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#saveExtrasBtn').onclick = ()=>{
+    if(!currentEmpInModal){ return; }
+    if(!currentMonthKey){ alert('אין חודש נבחר.'); return; }
+    setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm());
+    updateModalTotals();
+    updateModalFinal();
+    saveLocal();
+    renderMonthlySummaryCard();
+  };
+});
 
 // פאנלים בכרטיס
 function renderEmpDailyPanel(emp, ym){
@@ -472,21 +643,41 @@ function updateModalFinal(){
   $('#empFinal').textContent = fmt2(base + exSum);
 }
 
-// פתיחה מכפתור למעלה
+// ===================== File Handling & Bindings =====================
+async function handleFile(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  try{
+    const rows = await readWorkbook(file);
+    punches = parsePunches(rows).map(p=> ({...p, employee:normEmpName(p.employee)}));
+    if(punches.length===0){ alert('לא נמצאו נתוני משמרות בקובץ.'); return; }
+    perDayBase = buildDailyBase(punches);
+    // ודא שיש קונפיג לכל עובד
+    for(const e of new Set(perDayBase.map(r=>normEmpName(r.employee)))) ensureEmpConfig(e);
+    renderEmployeeSelect();
+    renderMonthlySummaryCard();
+    saveLocal();
+  }catch(err){ console.error(err); alert('שגיאה בקריאת הקובץ'); }
+}
 function openCardFromSelect(){
   const emp = $('#employeeFilter').value;
   if(emp && emp!=='ALL') openEmployeeCard(emp);
   else alert('נא לבחור עובד מהרשימה.');
 }
 
-// ===================== Bindings & Boot =====================
 window.addEventListener('DOMContentLoaded', ()=>{
   // file
   $('#file').addEventListener('change', handleFile);
+
   // top actions
   $('#exportDaily').addEventListener('click', exportDaily);
   $('#exportSummary').addEventListener('click', exportSummary);
-  $('#exportJSON').addEventListener('click', exportJSON);
+  $('#exportJSON').addEventListener('click', ()=>{
+    try{
+      const data = serializeSession();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`payroll_session_${(new Date).toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href);
+    }catch(e){ alert('שגיאה בייצוא הסשן'); }
+  });
   $('#importJSON').addEventListener('click', ()=> $('#importJSONFile').click());
   $('#importJSONFile').addEventListener('change', async (ev)=>{
     const f = ev.target.files[0]; if(!f) return;
@@ -499,134 +690,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
   });
   $('#openCardBtn').addEventListener('click', openCardFromSelect);
 
-  // load previous
+  // load previous (אם יש)
   loadLocalIfAny();
+
+  // רענון הסיכום גם אם משהו השתנה
+  const empSelTop = document.querySelector('#employeeFilter');
+  if (empSelTop) {
+    empSelTop.addEventListener('change', () => {
+      renderMonthlySummaryCard();
+    });
+  }
 });
-// ===== סיכום חודשי בדף הבית =====
-function computeSummaryRows() {
-  // חישוב לכל עובד + סעיפים (כמו בייצוא)
-  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
-    .map(r => ({...r, employee: normEmpName(r.employee)}));
-
-  const byEmp = new Map();
-  for (const r of perDay) {
-    const emp = r.employee;
-    const obj = byEmp.get(emp) || {
-      employee: emp, total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0, basePay:0,
-      travel:0, tips:0, bonus:0, advance:0, finalPay:0
-    };
-    obj.total += r.total; obj.reg += r.reg; obj.ot125 += r.ot125; obj.ot150 += r.ot150;
-    obj.shabbat150 += r.shabbat150; obj.weighted += r.weighted;
-    obj.basePay += r.weighted * (+ensureEmpConfig(emp).rate || 0);
-    byEmp.set(emp, obj);
-  }
-  // הוספת סעיפים מצטברים לעובד
-  for (const [emp, obj] of byEmp) {
-    const exmap = ensureEmpConfig(emp).extras || {};
-    let t=0, ti=0, b=0, a=0;
-    for (const [k,v] of Object.entries(exmap)) {
-      if (k === '__default') continue;
-      t += +(v.travel||0); ti += +(v.tips||0); b += +(v.bonus||0); a += +(v.advance||0);
-    }
-    if (t===0 && ti===0 && b===0 && a===0 && exmap.__default) {
-      t += +(exmap.__default.travel||0);
-      ti += +(exmap.__default.tips||0);
-      b += +(exmap.__default.bonus||0);
-      a += +(exmap.__default.advance||0);
-    }
-    obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a;
-    obj.finalPay = obj.basePay + t + ti + b - a;
-  }
-  return Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee));
-}
-
-function renderMonthlySummaryCard() {
-  const tbody = document.querySelector('#summaryTable tbody');
-  const tfootRow = document.querySelector('#summaryTotalsRow');
-  if (!tbody || !tfootRow) return;
-
-  const rows = computeSummaryRows();
-  tbody.innerHTML = '';
-
-  // אגרגציה לשורה תחתונה
-  const totals = {
-    employee: 'סה״כ', total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0,
-    basePay:0, travel:0, tips:0, bonus:0, advance:0, finalPay:0
-  };
-
-  for (const r of rows) {
-    totals.total += r.total;
-    totals.reg += r.reg;
-    totals.ot125 += r.ot125;
-    totals.ot150 += r.ot150;
-    totals.shabbat150 += r.shabbat150;
-    totals.weighted += r.weighted;
-    totals.basePay += r.basePay;
-    totals.travel += r.travel;
-    totals.tips += r.tips;
-    totals.bonus += r.bonus;
-    totals.advance += r.advance;
-    totals.finalPay += r.finalPay;
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${r.employee}</td>
-      <td>${fmt2(r.total)}</td>
-      <td>${fmt2(r.reg)}</td>
-      <td>${fmt2(r.ot125)}</td>
-      <td>${fmt2(r.ot150)}</td>
-      <td>${fmt2(r.shabbat150)}</td>
-      <td>${fmt2(r.weighted)}</td>
-      <td>${fmt2(r.basePay)}</td>
-      <td>${fmt2(r.travel)}</td>
-      <td>${fmt2(r.tips)}</td>
-      <td>${fmt2(r.bonus)}</td>
-      <td>${fmt2(r.advance)}</td>
-      <td>${fmt2(r.finalPay)}</td>`;
-    tbody.appendChild(tr);
-  }
-
-  // שורת סכום
-  tfootRow.innerHTML = `
-    <th>${totals.employee}</th>
-    <td>${fmt2(totals.total)}</td>
-    <td>${fmt2(totals.reg)}</td>
-    <td>${fmt2(totals.ot125)}</td>
-    <td>${fmt2(totals.ot150)}</td>
-    <td>${fmt2(totals.shabbat150)}</td>
-    <td>${fmt2(totals.weighted)}</td>
-    <td>${fmt2(totals.basePay)}</td>
-    <td>${fmt2(totals.travel)}</td>
-    <td>${fmt2(totals.tips)}</td>
-    <td>${fmt2(totals.bonus)}</td>
-    <td>${fmt2(totals.advance)}</td>
-    <td>${fmt2(totals.finalPay)}</td>`;
-}
-
-// בכל שינוי רלוונטי נרנדר מחדש את הסיכום
-function refreshAllSummaries() {
-  renderMonthlySummaryCard();
-}
-
-// -- חיבורים קיימים שמעדכנים גם את הסיכום --
-/* אחרי טעינת קובץ/סשן */ 
-// בסוף handleFile(...) אחרי renderEmployeeSelect(); הוסף:
-renderMonthlySummaryCard();
-
-// בסוף reviveSession(...) אחרי renderEmployeeSelect(); הוסף:
-renderMonthlySummaryCard();
-
-// כאשר מתבצעת שמירה של סעיפים (saveExtrasBtn.onclick) אחרי saveLocal();
-renderMonthlySummaryCard();
-
-// כאשר משתנה מצב/שכר לשעה בכרטיס עובד, אחרי updateModalFinal();
-renderMonthlySummaryCard();
-
-// וגם לאחר שינוי בחירת עובד למעלה (אם תרצה, לא חובה):
-const empSelTop = document.querySelector('#employeeFilter');
-if (empSelTop) {
-  empSelTop.addEventListener('change', () => {
-    // לא משנה את הסיכום עצמו (הוא לכל העובדים), אבל טוב לרענן אם תרצה.
-    renderMonthlySummaryCard();
-  });
-}
