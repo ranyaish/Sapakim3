@@ -146,3 +146,52 @@ thead th{
 
 /* כשמודל פתוח – אל תגלול את הגוף, כדי שטבלאות רקע לא "יצופו" */
 body.modal-open{ overflow:hidden; }
+
+/* ===== Modal layer fix ===== */
+.modal{
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: flex-start;          /* להתחיל מעט מלמעלה בנייד */
+  justify-content: center;
+  background: rgba(0,0,0,.35);      /* שכבת חצי-שקופה מעל העמוד */
+  z-index: 10000;                   /* מעל כל דבר בעמוד */
+}
+.modal.show{ display: flex; }
+
+/* גוף המודל – ניתן לגלילה פנימית בלי שגלילת הרקע תזוז */
+.modal .modal-body{
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+  padding-bottom: 16px;
+}
+
+/* נעילת גלילת הרקע כאשר המודל פתוח */
+body.modal-open{ overflow: hidden; }
+
+/* ===== Sticky רק היכן שצריך ===== */
+thead th{
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+}
+
+/* כותרות סטיקי באזורי גלילה שונים */
+.wrap .hscroll thead th{ top: 64px; }          /* בעמוד הראשי, מתחת לכותרת העליונה */
+.modal .hscroll thead th{ top: 0; z-index: 3;} /* בתוך המודל בלבד */
+
+/* כאשר מודל פתוח – מבטלים "סטיקי" של דברים מהרקע שלא אמורים לצוף עליו */
+body.modal-open .wrap tfoot,
+body.modal-open .wrap .sticky-bottom,
+body.modal-open .wrap .sticky-row{
+  position: static !important;
+  box-shadow: none !important;
+  z-index: 0 !important;
+}
+
+/* מרווחים דקים יותר בטבלאות במודל – כדי שלא יהיו "אוויר" וריצודים */
+.modal table td, .modal table th{
+  padding: 6px 10px;
+  line-height: 1.25;
+}
