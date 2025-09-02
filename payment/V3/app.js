@@ -502,3 +502,131 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // load previous
   loadLocalIfAny();
 });
+// ===== סיכום חודשי בדף הבית =====
+function computeSummaryRows() {
+  // חישוב לכל עובד + סעיפים (כמו בייצוא)
+  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
+    .map(r => ({...r, employee: normEmpName(r.employee)}));
+
+  const byEmp = new Map();
+  for (const r of perDay) {
+    const emp = r.employee;
+    const obj = byEmp.get(emp) || {
+      employee: emp, total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0, basePay:0,
+      travel:0, tips:0, bonus:0, advance:0, finalPay:0
+    };
+    obj.total += r.total; obj.reg += r.reg; obj.ot125 += r.ot125; obj.ot150 += r.ot150;
+    obj.shabbat150 += r.shabbat150; obj.weighted += r.weighted;
+    obj.basePay += r.weighted * (+ensureEmpConfig(emp).rate || 0);
+    byEmp.set(emp, obj);
+  }
+  // הוספת סעיפים מצטברים לעובד
+  for (const [emp, obj] of byEmp) {
+    const exmap = ensureEmpConfig(emp).extras || {};
+    let t=0, ti=0, b=0, a=0;
+    for (const [k,v] of Object.entries(exmap)) {
+      if (k === '__default') continue;
+      t += +(v.travel||0); ti += +(v.tips||0); b += +(v.bonus||0); a += +(v.advance||0);
+    }
+    if (t===0 && ti===0 && b===0 && a===0 && exmap.__default) {
+      t += +(exmap.__default.travel||0);
+      ti += +(exmap.__default.tips||0);
+      b += +(exmap.__default.bonus||0);
+      a += +(exmap.__default.advance||0);
+    }
+    obj.travel=t; obj.tips=ti; obj.bonus=b; obj.advance=a;
+    obj.finalPay = obj.basePay + t + ti + b - a;
+  }
+  return Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b.employee));
+}
+
+function renderMonthlySummaryCard() {
+  const tbody = document.querySelector('#summaryTable tbody');
+  const tfootRow = document.querySelector('#summaryTotalsRow');
+  if (!tbody || !tfootRow) return;
+
+  const rows = computeSummaryRows();
+  tbody.innerHTML = '';
+
+  // אגרגציה לשורה תחתונה
+  const totals = {
+    employee: 'סה״כ', total:0, reg:0, ot125:0, ot150:0, shabbat150:0, weighted:0,
+    basePay:0, travel:0, tips:0, bonus:0, advance:0, finalPay:0
+  };
+
+  for (const r of rows) {
+    totals.total += r.total;
+    totals.reg += r.reg;
+    totals.ot125 += r.ot125;
+    totals.ot150 += r.ot150;
+    totals.shabbat150 += r.shabbat150;
+    totals.weighted += r.weighted;
+    totals.basePay += r.basePay;
+    totals.travel += r.travel;
+    totals.tips += r.tips;
+    totals.bonus += r.bonus;
+    totals.advance += r.advance;
+    totals.finalPay += r.finalPay;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.employee}</td>
+      <td>${fmt2(r.total)}</td>
+      <td>${fmt2(r.reg)}</td>
+      <td>${fmt2(r.ot125)}</td>
+      <td>${fmt2(r.ot150)}</td>
+      <td>${fmt2(r.shabbat150)}</td>
+      <td>${fmt2(r.weighted)}</td>
+      <td>${fmt2(r.basePay)}</td>
+      <td>${fmt2(r.travel)}</td>
+      <td>${fmt2(r.tips)}</td>
+      <td>${fmt2(r.bonus)}</td>
+      <td>${fmt2(r.advance)}</td>
+      <td>${fmt2(r.finalPay)}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  // שורת סכום
+  tfootRow.innerHTML = `
+    <th>${totals.employee}</th>
+    <td>${fmt2(totals.total)}</td>
+    <td>${fmt2(totals.reg)}</td>
+    <td>${fmt2(totals.ot125)}</td>
+    <td>${fmt2(totals.ot150)}</td>
+    <td>${fmt2(totals.shabbat150)}</td>
+    <td>${fmt2(totals.weighted)}</td>
+    <td>${fmt2(totals.basePay)}</td>
+    <td>${fmt2(totals.travel)}</td>
+    <td>${fmt2(totals.tips)}</td>
+    <td>${fmt2(totals.bonus)}</td>
+    <td>${fmt2(totals.advance)}</td>
+    <td>${fmt2(totals.finalPay)}</td>`;
+}
+
+// בכל שינוי רלוונטי נרנדר מחדש את הסיכום
+function refreshAllSummaries() {
+  renderMonthlySummaryCard();
+}
+
+// -- חיבורים קיימים שמעדכנים גם את הסיכום --
+/* אחרי טעינת קובץ/סשן */ 
+// בסוף handleFile(...) אחרי renderEmployeeSelect(); הוסף:
+renderMonthlySummaryCard();
+
+// בסוף reviveSession(...) אחרי renderEmployeeSelect(); הוסף:
+renderMonthlySummaryCard();
+
+// כאשר מתבצעת שמירה של סעיפים (saveExtrasBtn.onclick) אחרי saveLocal();
+renderMonthlySummaryCard();
+
+// כאשר משתנה מצב/שכר לשעה בכרטיס עובד, אחרי updateModalFinal();
+renderMonthlySummaryCard();
+
+// וגם לאחר שינוי בחירת עובד למעלה (אם תרצה, לא חובה):
+const empSelTop = document.querySelector('#employeeFilter');
+if (empSelTop) {
+  empSelTop.addEventListener('change', () => {
+    // לא משנה את הסיכום עצמו (הוא לכל העובדים), אבל טוב לרענן אם תרצה.
+    renderMonthlySummaryCard();
+  });
+}
