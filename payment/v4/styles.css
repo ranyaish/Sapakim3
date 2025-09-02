@@ -1,0 +1,137 @@
+:root{
+  --bg1:#E9FFF7;
+  --bg2:#D7FFF4;
+
+  --card:#FFF9F0;
+  --card-br:#EFE4D6;
+
+  --ink:#0b1b2b;
+  --muted:#4b5d77;
+
+  /* כפתורים פסטל */
+  --acc:#7DB9FF;   /* כחול פסטלי */
+  --acc-2:#9CC7FF; /* חלופי פסטלי */
+  --warn:#FF9AA2;  /* ורוד-אדום פסטלי */
+
+  --line:#e8e0d0;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+html,body{overflow-x:hidden}
+body{
+  margin:0;
+  background:linear-gradient(180deg,var(--bg1),var(--bg2));
+  color:var(--ink);
+  font-family:Heebo,system-ui,Arial,sans-serif
+}
+header{
+  padding:14px 16px;
+  border-bottom:1px solid rgba(0,0,0,.06);
+  background:rgba(255,255,255,.45);
+  -webkit-backdrop-filter:saturate(115%) blur(6px);
+  backdrop-filter:saturate(115%) blur(6px);
+  position:sticky;top:0;z-index:5
+}
+h1{margin:0;font-size:20px;color:#134}
+.wrap{max-width:1100px;margin:14px auto;padding:0 12px}
+
+.card {
+  background: var(--card);
+  border: 1px solid #1e2a52;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+}
+.pad{padding:12px}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.col{flex:1 1 260px;min-width:0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+
+/* שדות לבנים */
+.inp{
+  width:100%;
+  background:#ffffff;border:1px solid #d6dbe8;border-radius:12px;
+  padding:10px 12px;color:var(--ink);min-height:40px
+}
+/* כפתורים פסטליים */
+.btn{
+  background:var(--acc);color:#0b1b2b;border:0;border-radius:12px;
+  padding:10px 14px;font-weight:800;cursor:pointer;min-height:40px
+}
+.btn.alt{background:var(--acc-2);color:#0b1b2b}
+.btn.warn{background:var(--warn);color:#0b1b2b}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+
+label{font-size:14px;color:#334b68}
+.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;background:#eef3ff;border:1px solid #d7e2ff;color:#345}
+.muted{color:#5d6e8b}
+.small{font-size:12px;color:#6b7a8f}
+.foot{margin-top:8px;font-size:12px;color:#4a6278}
+
+/* בתוך המודאל אוסר sticky של head בטבלאות */
+.dialog thead th{position:static;top:auto}
+
+/* מודאל */
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1000}
+.modal.show{display:flex}
+.backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.dialog{
+  position:relative;width:min(980px,96vw);max-height:92vh;overflow:auto;
+  background:#fff;border:1px solid #e5e1d7;border-radius:16px;box-shadow:0 18px 70px rgba(0,0,0,.25)
+}
+/* הכותרת “נדבקת” ומעל הכל כדי שתמיד יראו את כפתור סגור */
+.dialog header{
+  position:sticky;top:0;z-index:10;
+  background:#fff;border-bottom:1px solid #ece8de;padding:10px 14px;
+  border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center
+}
+.dialog h2{margin:0;font-size:18px;color:#0b1b2b}
+.dialog .content{padding:12px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px}
+.sumbox{background:#fff;border:1px solid #ece8de;border-radius:12px;padding:10px}
+.sumrow{display:flex;justify-content:space-between;margin:6px 0;gap:10px;align-items:center}
+.sumrow b{font-weight:800}
+.hr{height:1px;background:#eee7da;margin:10px 0}
+.tabs{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.tab{padding:6px 10px;border:1px solid #e3e0d6;border-radius:10px;background:#fff;cursor:pointer}
+.tab.active{outline:2px solid #7DB9FF}
+.inp.narrow{max-width:200px}
+
+/* מובייל */
+@media (max-width: 980px){
+  .grid2{grid-template-columns:1fr}
+  header h1{font-size:18px}
+}
+@media (max-width: 560px){
+  .row{flex-direction:column;align-items:stretch}
+  .col{flex:1 1 auto}
+  .inp,.btn{width:100%}
+  .dialog{width:calc(100vw - 14px);max-height:96vh}
+  .sumrow{flex-wrap:wrap}
+  .sumrow .inp{flex:1}
+}
+/* ... הקובץ שלך כרגיל ... */
+
+/* כדי שהכותרת של טבלת הסיכום לא תסתיר שמות עובדים */
+#summaryTable thead th { position: static; top: auto; }
+
+/* הדגשת שורת הסיכום */
+#summaryTable tfoot td, #summaryTable tfoot th { font-weight: 800; }
+
+/* גלילה אופקית לטבלאות בתוך עטיפה */
+.tablewrap {
+  overflow-x: auto;   /* חשוב */
+  overflow-y: hidden; /* אופציונלי, כדי למנוע פס גלילה אנכי מיותר */
+}
+
+/* ודא שלטבלה יש מינימום רוחב כדי שתופיע גלילה אם צריך */
+#summaryTable {
+  min-width: 1100px; /* תוכל להגדיל/להקטין לפי כמות העמודות */
+}
+
+/* (לא חובה) שמור את הכותרת לא דביקה כדי שלא תכסה שמות עובדים */
+#summaryTable thead th {
+  position: static;
+  top: auto;
+}
