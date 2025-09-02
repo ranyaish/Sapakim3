@@ -60,13 +60,13 @@
     <div class="content">
       <div class="tabs">
         <button id="tab-config" class="tab active">פרטי שכר</button>
-        <button id="tab-daily" class="tab">פירוט יומי (משוקלל) + סעיפים</button>
+        <button id="tab-daily" class="tab">פירוט יומי + סעיפי שכר</button>
         <button id="tab-punches" class="tab">משמרות (כניסה/יציאה)</button>
       </div>
 
       <div class="grid2">
         <div>
-          <!-- CONFIG TAB -->
+          <!-- CONFIG TAB (ללא סעיפים) -->
           <div id="panel-config">
             <div class="sumbox">
               <div class="sumrow">
@@ -89,13 +89,13 @@
             </div>
           </div>
 
-          <!-- DAILY TAB (כולל סעיפים) -->
+          <!-- DAILY TAB (כאן הסעיפים) -->
           <div id="panel-daily" style="display:none">
-            <div class="pill" style="margin-bottom:8px">סעיפים לחודש הנבחר</div>
+            <div class="pill" style="margin-bottom:8px">סעיפי שכר לחודש הנבחר</div>
             <div class="sumbox" style="margin-bottom:10px">
               <div class="sumrow"><label>נסיעות (₪)</label><input id="extra_travel" type="number" step="0.01" class="inp narrow" /></div>
               <div class="sumrow"><label>טיפים (₪)</label><input id="extra_tips" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>תוספת (₪)</label><input id="extra_bonus" type="number" step="0.01" class="inp narrow" /></div>
+              <div class="sumrow"><label>תוספת שכר (₪)</label><input id="extra_bonus" type="number" step="0.01" class="inp narrow" /></div>
               <div class="sumrow"><label>החזר מקדמה (₪-)</label><input id="extra_advance" type="number" step="0.01" class="inp narrow" /></div>
               <button id="saveExtrasBtn" class="btn" style="margin-top:8px">שמירה</button>
             </div>
@@ -146,15 +146,17 @@
             <div class="hr"></div>
             <div class="sumrow"><span>שעות משוקללות</span><b id="empWgt">0</b></div>
             <div class="sumrow"><span>שכר בסיס</span><b id="empBase">0</b></div>
-            <div class="sumrow"><span>סעיפים</span><b id="empExtrasSum">0</b></div>
+            <!-- שורה חדשה בשם "סעיפי שכר" -->
+            <div class="sumrow"><span>סעיפי שכר</span><b id="empExtrasSum">0</b></div>
             <div class="hr"></div>
-            <div class="sumrow"><span>שכר סופי (כולל סעיפים)</span><b id="empFinal">0</b></div>
+            <!-- שינוי טקסט לשכר ברוטו -->
+            <div class="sumrow"><span>שכר ברוטו</span><b id="empFinal">0</b></div>
           </div>
         </div>
       </div>
 
       <div class="foot small">
-        הסעיפים נשמרים לפי חודש לכל עובד. הכל מתעדכן מיידית בשמירה.
+        הסעיפים נשמרים לפי חודש לכל עובד. השינויים מתעדכנים מיידית בלחיצה על “שמירה”.
       </div>
     </div>
   </div>
