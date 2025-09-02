@@ -9,7 +9,7 @@ const two = n => String(n).padStart(2,'0');
 const hhmm = d => two(d.getHours())+':'+two(d.getMinutes());
 const wdHe = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
 const STORAGE_KEY = 'payrollSessionV9';
-console.log('payroll app.js v1.9.3');
+console.log('payroll app.js wired — v1.9.4');
 function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
 
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
@@ -23,10 +23,11 @@ function parseHebDateTime(s){
 }
 
 // ===================== Parsing workbook =====================
+// === PATCH-ANCHOR: READ_WORKBOOK (v1.9.4) ===
 async function readWorkbook(file){
   if (!window.XLSX) { alert('ספריית XLSX לא נטענה'); throw new Error('XLSX missing'); }
-
   const ext = file.name.toLowerCase().split('.').pop();
+
   const reader = new FileReader();
   const load = new Promise(res=> reader.onload = () => res(reader.result));
   if(ext==='csv') reader.readAsText(file);
@@ -34,16 +35,16 @@ async function readWorkbook(file){
   const data = await load;
 
   const wb = (ext==='csv')
-    ? XLSX.read(data, {type:'string', raw:false})
-    : XLSX.read(data, {type:'array',  raw:false});
+    ? XLSX.read(data, { type:'string', raw:false })
+    : XLSX.read(data, { type:'array',  raw:false, cellDates:true, dateNF:"dd/mm/yyyy hh:mm" });
 
-  // קורא את כל הגליונות ומנקה NBSP
   const allRows = [];
-  for (const sheetName of wb.SheetNames) {
-    const ws = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    // defval:'' שומר עמודות, header:1 מחזיר מערכי שורות
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
     for (const row of rows) {
-      allRows.push((row || []).map(x => String(x ?? '').replace(/\u00A0/g, ' ').trim()));
+      allRows.push((row || []).map(x => String(x ?? '').replace(/\u00A0/g,' ').trim()));
     }
     allRows.push([]); // מפריד בין גליונות
   }
@@ -51,7 +52,54 @@ async function readWorkbook(file){
   return allRows;
 }
 
+// === PATCH-ANCHOR: FALLBACK_PARSERS (v1.9.4) ===
+// === PATCH-ANCHOR: FALLBACK_PARSERS (v1.9.4) ===
+function parsePunchesFallback(rows){
+  const out = [];
+  let currentEmp = null;
+  const titleReLoose = /עבור\s+(.+?)\s+בין/;
 
+  function guessEmp(around){
+    for(let i=Math.max(0,around-12); i<around; i++){
+      for(const cell of (rows[i]||[])){
+        const m = String(cell||'').match(titleReLoose);
+        if(m) return normEmpName(m[1]);
+      }
+    }
+    return 'לא מזוהה';
+  }
+
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i] || [];
+    for(const cell of r){
+      const m = String(cell||'').match(titleReLoose);
+      if(m){ currentEmp = normEmpName(m[1]); break; }
+    }
+    const c0 = String(r[0]||''); const c1 = String(r[1]||'');
+    const d0 = parseHebDateTime(c0); const d1 = parseHebDateTime(c1);
+    if(d0 && d1){
+      const emp = currentEmp || guessEmp(i);
+      out.push({ employee: emp, dtIn: d0, dtOut: d1 });
+    }
+  }
+  return out;
+}
+
+function safeParsePunches(rows){
+  let p = parsePunches(rows);
+  if (!p || p.length===0) {
+    try { console.warn('[payroll] primary parse=0; fallback'); } catch(_){}
+    p = parsePunchesFallback(rows);
+  }
+  // דה-דופליקציה
+  const s = new Set();
+  p = p.filter(x=>{
+    const k = `${normEmpName(x.employee)}|${new Date(x.dtIn).toISOString()}|${new Date(x.dtOut).toISOString()}`;
+    if(s.has(k)) return false; s.add(k); return true;
+  });
+  try { console.log('[payroll] punches total:', p.length); } catch(_){}
+  return p;
+}
 
 
 // ===================== Core calculations =====================
@@ -781,6 +829,95 @@ window.addEventListener('DOMContentLoaded', ()=>{
   loadLocalIfAny();
 
   // רענון הסיכום גם כשמשנים סינון עובד למעלה
+  const empSelTop = document.querySelector('#employeeFilter');
+  if (empSelTop) {
+    empSelTop.addEventListener('change', () => {
+      renderMonthlySummaryCard();
+    });
+  }
+});
+
+// ===================== File Handling & Bindings =====================
+async function handleFile(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  try{
+    const rows = await readWorkbook(file);
+
+    // משתמשים בפארסר הבטוח (עם fallback)
+    punches = safeParsePunches(rows).map(p=> ({...p, employee:normEmpName(p.employee)}));
+
+    if(punches.length===0){
+      alert('לא נמצאו נתוני משמרות בקובץ.');
+      return;
+    }
+
+    perDayBase = buildDailyBase(punches);
+
+    // ודא שיש קונפיג לכל עובד
+    for(const e of new Set(perDayBase.map(r=>normEmpName(r.employee)))) ensureEmpConfig(e);
+
+    renderEmployeeSelect();
+    renderMonthlySummaryCard();
+    saveLocal();
+
+  }catch(err){
+    console.error(err);
+    alert('שגיאה בקריאת הקובץ');
+  }
+}
+
+function openCardFromSelect(){
+  const emp = $('#employeeFilter')?.value;
+  if(emp && emp!=='ALL') openEmployeeCard(emp);
+  else alert('נא לבחור עובד מהרשימה.');
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  // קבצים
+  const fileInp = document.querySelector('#file');
+  if (fileInp) fileInp.addEventListener('change', handleFile);
+
+  // יצוא/יבוא
+  const btnDaily = document.querySelector('#exportDaily');
+  const btnSum   = document.querySelector('#exportSummary');
+  const btnJson  = document.querySelector('#exportJSON');
+  const btnOpen  = document.querySelector('#openCardBtn');
+  const btnImp   = document.querySelector('#importJSON');
+  const inpImp   = document.querySelector('#importJSONFile');
+  const btnClr   = document.querySelector('#clearSession');
+
+  if(btnDaily) btnDaily.addEventListener('click', exportDaily);
+  if(btnSum  ) btnSum  .addEventListener('click', exportSummary);
+  if(btnJson ) btnJson .addEventListener('click', ()=>{
+    try{
+      const data = serializeSession();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`payroll_session_${(new Date).toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }catch(e){ alert('שגיאה בייצוא הסשן'); }
+  });
+  if(btnOpen) btnOpen.addEventListener('click', openCardFromSelect);
+  if(btnClr ) btnClr .addEventListener('click', ()=>{
+    if(confirm('לנקות סשן מקומי?')){ localStorage.removeItem(STORAGE_KEY); alert('נוקה הזיכרון המקומי.'); }
+  });
+
+  if(btnImp && inpImp){
+    btnImp.addEventListener('click', ()=> inpImp.click());
+    inpImp.addEventListener('change', async (ev)=>{
+      const f = ev.target.files[0]; if(!f) return;
+      try{ const txt = await f.text(); reviveSession(JSON.parse(txt)); }
+      catch(e){ alert('שגיאה בטעינת JSON'); }
+      finally{ ev.target.value = ''; }
+    });
+  }
+
+  // טעינה מקומית אם קיימת
+  loadLocalIfAny();
+
+  // רענון סיכום בעת שינוי סינון עובד למעלה
   const empSelTop = document.querySelector('#employeeFilter');
   if (empSelTop) {
     empSelTop.addEventListener('change', () => {
