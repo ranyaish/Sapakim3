@@ -201,7 +201,7 @@ function renderEmployeeSelect(){
   $('#exportDaily').disabled = dis; $('#exportSummary').disabled = dis; $('#exportJSON').disabled = dis;
 }
 
-// ===================== XLSX helpers (RTL + Bold header + zebra rows) =====================
+// ===================== XLSX helpers =====================
 async function exportXlsx(filename, headersHeb, rowsArray) {
   const X = window.XlsxPopulate;
   if (!X) { alert('XlsxPopulate לא נטען'); return; }
@@ -272,7 +272,7 @@ function exportSummary(){
   exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
 }
 
-// ===================== Monthly summary card (homepage) =====================
+// ===================== Monthly summary card =====================
 function computeSummaryRows() {
   const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r => ({...r, employee: normEmpName(r.employee)}));
   const byEmp = new Map();
@@ -372,7 +372,7 @@ function setActiveTab(id){
   });
 }
 
-// ====== ניווט בין עובדים (תוספת מינימלית) ======
+// ניווט בין עובדים
 function openSiblingEmployee(step){
   if(!currentEmpInModal) return;
   const emps = getEmployeesList();
@@ -382,7 +382,7 @@ function openSiblingEmployee(step){
   openEmployeeCard(emps[next]);
 }
 
-// ====== סעיפים (בטאב פירוט יומי) ======
+// סעיפים + עידכוני סיכומים
 function readExtrasFromForm(){
   return {
     travel: +($('#extra_travel').value||0),
@@ -398,8 +398,6 @@ function loadExtrasIntoForm(emp, ym){
   $('#extra_bonus').value = +ex.bonus || 0;
   $('#extra_advance').value = +ex.advance || 0;
 }
-
-// פאנלים בכרטיס
 function renderEmpDailyPanel(emp, ym){
   const rows = ym ? filterPerDayByMonth(emp, ym) : [];
   const tb = $('#empCardDaily tbody'); if(!tb) return;
@@ -421,10 +419,15 @@ function renderEmpPunchesPanel(emp, ym){
   }
 }
 function updateModalTotals(){
-  if(!currentEmpInModal || !currentMonthKey){ $('#empWgt').textContent='0'; $('#empBase').textContent='0'; $('#empExtrasSum').textContent='0'; $('#empWgt_d').textContent='0'; $('#empBase_d').textContent='0'; $('#empExtrasSum_d').textContent='0'; return; }
+  if(!currentEmpInModal || !currentMonthKey){
+    $('#empWgt').textContent='0'; $('#empBase').textContent='0'; $('#empExtrasSum').textContent='0';
+    $('#empWgt_d').textContent='0'; $('#empBase_d').textContent='0'; $('#empExtrasSum_d').textContent='0';
+    return;
+  }
   const rows = filterPerDayByMonth(currentEmpInModal, currentMonthKey); let wsum = 0, base = 0;
   for(const r of rows){ wsum += r.weighted; base += r.pay; }
-  const ex = getExtras(currentEmpInModal, currentMonthKey); const extrasSum = (+ex.travel||0) + (+ex.tips||0) + (+ex.bonus||0) - (+ex.advance||0);
+  const ex = getExtras(currentEmpInModal, currentMonthKey);
+  const extrasSum = (+ex.travel||0) + (+ex.tips||0) + (+ex.bonus||0) - (+ex.advance||0);
   $('#empWgt').textContent = fmt2(wsum); $('#empBase').textContent = fmt2(base); $('#empExtrasSum').textContent = fmt2(extrasSum);
   $('#empWgt_d').textContent = fmt2(wsum); $('#empBase_d').textContent = fmt2(base); $('#empExtrasSum_d').textContent = fmt2(extrasSum);
 }
@@ -454,7 +457,6 @@ function openCardFromSelect(){
 
 // ===================== Events =====================
 window.addEventListener('DOMContentLoaded', ()=>{
-  // file + actions
   $('#file').addEventListener('change', handleFile);
   $('#exportDaily').addEventListener('click', exportDaily);
   $('#exportSummary').addEventListener('click', exportSummary);
@@ -490,19 +492,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // סעיפים
   $('#saveExtrasBtn').onclick = ()=>{ if(!currentEmpInModal) return; if(!currentMonthKey){ alert('אין חודש נבחר.'); return; } setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm()); updateModalTotals(); updateModalFinal(); saveLocal(); renderMonthlySummaryCard(); };
 
-  // תוספת מינימלית: ניווט בין עובדים
+  // ניווט בין עובדים
   $('#empPrevBtn')?.addEventListener('click', ()=> openSiblingEmployee(-1));
   $('#empNextBtn')?.addEventListener('click', ()=> openSiblingEmployee(+1));
   document.addEventListener('keydown', (e)=>{
     const modalOpen = $('#empModal')?.classList.contains('show');
     if(!modalOpen) return;
-    if(e.key === 'ArrowRight') openSiblingEmployee(-1); // RTL: ימינה = הקודם
-    if(e.key === 'ArrowLeft')  openSiblingEmployee(+1); // RTL: שמאלה = הבא
+    if(e.key === 'ArrowRight') openSiblingEmployee(-1); // RTL
+    if(e.key === 'ArrowLeft')  openSiblingEmployee(+1);
   });
 
-  // load existing session
+  // existing session
   loadLocalIfAny();
-
-  // רענון הסיכום כשמשנים סינון עובד למעלה
   $('#employeeFilter')?.addEventListener('change', renderMonthlySummaryCard);
 });
