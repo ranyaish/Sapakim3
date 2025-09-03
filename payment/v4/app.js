@@ -341,7 +341,7 @@ function filterPerDayByMonth(emp, ym){
   return all.filter(r=> normEmpName(r.employee)===emp && r.date.slice(0,7)===ym)
             .map(r=> ({...r, pay: r.weighted * (+ensureEmpConfig(emp).rate || 0)}));
 }
-// פתיחת כרטיס
+
 function openEmployeeCard(emp){
   emp = normEmpName(emp);
   if (!emp) return;
@@ -353,6 +353,7 @@ function openEmployeeCard(emp){
   $('#empMode').value = ensureEmpConfig(emp).mode || 'A';
   $('#empRate').value = +ensureEmpConfig(emp).rate || 0;
 
+  // חודשים
   const months = monthsForEmployee(emp);
   const monthSel  = $('#empMonthSel');
   const monthSel2 = $('#empMonthSel2');
@@ -372,27 +373,52 @@ function openEmployeeCard(emp){
     monthSel2.value = currentMonthKey;
   }
 
+  // טעינת נתונים לפאנלים
   loadExtrasIntoForm(emp, currentMonthKey);
   renderEmpDailyPanel(emp, currentMonthKey);
   renderEmpPunchesPanel(emp, currentMonthKey);
   updateModalTotals();
   updateModalFinal();
 
+  // פתיחת מודאל + נעילת גלילה לרקע
   $('#empModal').classList.add('show');
   $('#empModal').setAttribute('aria-hidden', 'false');
-
-  // נועל גלילת רקע כדי שכותרות/שורות מהרקע לא "יצופו"
   document.body.classList.add('modal-open');
+
+  // ברירת מחדל: הצג את טאב "פרטי שכר" (או מה שתרצה)
+  setActiveTab('config');
+
+  // ליתר ביטחון: גלול את תוכן המודאל לראש
+  const mb = document.querySelector('#empModal .modal-body');
+  if (mb) mb.scrollTop = 0;
 }
 
 function closeEmpModal(){
   $('#empModal').classList.remove('show');
-  $('#empModal').setAttribute('aria-hidden', 'true'); // <— היה כאן typo
-
-  // משחרר את הנעילה כשסוגרים
+  $('#empModal').setAttribute('aria-hidden', 'true');   // ← תיקון ה-typo
   document.body.classList.remove('modal-open');
-
   currentEmpInModal = null;
+}
+window.closeEmpModal = closeEmpModal;
+
+// חיבור הטאבים (פעם אחת ב-DOMContentLoaded)
+document.addEventListener('DOMContentLoaded', () => {
+  const bind = (id, key) => {
+    const el = document.querySelector(id);
+    if (el) el.addEventListener('click', () => setActiveTab(key));
+  };
+  bind('#tab-config',  'config');   // "פרטי שכר"
+  bind('#tab-daily',   'daily');    // "פירוט יומי + סעיפים"
+  bind('#tab-punches', 'punches');  // "משמרות"
+});
+
+function setActiveTab(id){
+  ['config','daily','punches'].forEach(k=>{
+    const tabBtn   = document.querySelector('#tab-' + k);
+    const tabPanel = document.querySelector('#panel-' + k);
+    if (tabBtn)   tabBtn.classList.toggle('active', k === id);
+    if (tabPanel) tabPanel.style.display = (k === id ? '' : 'none');
+  });
 }
 
 // ניווט בין עובדים
