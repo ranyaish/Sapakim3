@@ -341,50 +341,60 @@ function filterPerDayByMonth(emp, ym){
   return all.filter(r=> normEmpName(r.employee)===emp && r.date.slice(0,7)===ym)
             .map(r=> ({...r, pay: r.weighted * (+ensureEmpConfig(emp).rate || 0)}));
 }
-
 // פתיחת כרטיס
 function openEmployeeCard(emp){
-  emp = normEmpName(emp); if(!emp) return;
-  ensureEmpConfig(emp); currentEmpInModal = emp;
+  emp = normEmpName(emp);
+  if (!emp) return;
+
+  ensureEmpConfig(emp);
+  currentEmpInModal = emp;
+
   $('#empModalTitle').textContent = `כרטיס עובד – ${emp}`;
   $('#empMode').value = ensureEmpConfig(emp).mode || 'A';
   $('#empRate').value = +ensureEmpConfig(emp).rate || 0;
 
   const months = monthsForEmployee(emp);
-  const monthSel = $('#empMonthSel'), monthSel2 = $('#empMonthSel2');
-  monthSel.innerHTML=''; monthSel2.innerHTML='';
-  if(months.length===0){
-    monthSel.innerHTML = '<option value="">—</option>';
+  const monthSel  = $('#empMonthSel');
+  const monthSel2 = $('#empMonthSel2');
+  monthSel.innerHTML = '';
+  monthSel2.innerHTML = '';
+
+  if (months.length === 0) {
+    monthSel.innerHTML  = '<option value="">—</option>';
     monthSel2.innerHTML = '<option value="">—</option>';
     currentMonthKey = null;
   } else {
-    currentMonthKey = months[months.length-1];
-    const opts = months.map(m=> `<option value="${m}">${m}</option>`).join('');
-    monthSel.innerHTML = opts; monthSel2.innerHTML = opts;
-    monthSel.value = currentMonthKey; monthSel2.value = currentMonthKey;
+    currentMonthKey = months[months.length - 1];
+    const opts = months.map(m => `<option value="${m}">${m}</option>`).join('');
+    monthSel.innerHTML  = opts;
+    monthSel2.innerHTML = opts;
+    monthSel.value  = currentMonthKey;
+    monthSel2.value = currentMonthKey;
   }
 
   loadExtrasIntoForm(emp, currentMonthKey);
   renderEmpDailyPanel(emp, currentMonthKey);
   renderEmpPunchesPanel(emp, currentMonthKey);
-  updateModalTotals(); updateModalFinal();
+  updateModalTotals();
+  updateModalFinal();
 
   $('#empModal').classList.add('show');
-  $('#empModal').setAttribute('aria-hidden','false');
+  $('#empModal').setAttribute('aria-hidden', 'false');
 
-  // חשוב: נועל גלילת רקע כדי שכותרות/שורות מהרקע לא "יצופו"
+  // נועל גלילת רקע כדי שכותרות/שורות מהרקע לא "יצופו"
   document.body.classList.add('modal-open');
 }
 
 function closeEmpModal(){
   $('#empModal').classList.remove('show');
-  $('#empModal').setAttribute('aria-hidden','true');
+  $('#empModal').setAttribute('aria-hidden', 'true'); // <— היה כאן typo
 
-  // שחרור הנעילה כשסוגרים
+  // משחרר את הנעילה כשסוגרים
   document.body.classList.remove('modal-open');
 
   currentEmpInModal = null;
 }
+
 // ניווט בין עובדים
 function openSiblingEmployee(step){
   if(!currentEmpInModal) return;
