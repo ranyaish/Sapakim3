@@ -259,3 +259,26 @@ body.modal-open .wrap .sticky-row {
   padding: 6px 10px;
   line-height: 1.25;
 }
+/* ===== Modal stacking & clicks ===== */
+.modal { z-index: 10000; }
+.modal .backdrop { position:absolute; inset:0; background:rgba(0,0,0,.35); z-index: 0; }
+.modal .dialog   { position:relative; z-index: 1; }  /* התוכן מעל ה-backdrop */
+
+/* נעילת גלילת הרקע כשמודאל פתוח */
+body.modal-open { overflow: hidden; }
+
+/* ===== Sticky רק במה שצריך בתוך המודאל ===== */
+.modal thead th { position: sticky; top: 0; background: #fff; z-index: 3; }
+
+/* חשוב: בתוך המודאל לא רוצים ש-footers/שורות סיכום יהיו sticky בכלל */
+.modal tfoot, 
+.modal .sticky-row, 
+.modal .sticky-bottom { 
+  position: static !important; 
+  box-shadow: none !important; 
+  z-index: 0 !important; 
+}
+
+/* ריווח קומפקטי יותר בטבלאות מודאל כדי שלא "יצופו" אזורים */
+.modal table td, 
+.modal table th { padding: 6px 10px; line-height: 1.25; }
