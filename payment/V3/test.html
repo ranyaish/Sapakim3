@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>אפליקציית חישוב משכורות — v2.0.1</title>
+  <title>אפליקציית חישוב משכורות — v2.1.0</title>
 
   <style>
     :root{--ink:#0b1b2b;--line:#e9eef7;--acc:#7DB9FF}
     *{box-sizing:border-box}
     body{margin:0;font-family:Heebo,system-ui,Arial,sans-serif;color:var(--ink);background:#fff}
     .ver{background:#fff3cd;border-bottom:1px solid #f1e1a3;padding:8px 12px;text-align:center;font-weight:800}
+
     header{position:sticky;top:0;background:#f7fbff;border-bottom:1px solid #e6eef8;padding:12px 14px;z-index:5}
     .wrap{max-width:1100px;margin:0 auto;padding:12px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}
@@ -19,6 +20,7 @@
     .inp{width:100%;padding:9px 10px;border:1px solid #d6dbe8;border-radius:10px;background:#fff}
     .btn{background:var(--acc);border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn.small{padding:6px 10px;font-size:13px}
     .card{border:1px solid #e6eef8;border-radius:14px;padding:12px;background:#fff}
     table{width:100%;border-collapse:collapse}
     th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}
@@ -27,6 +29,34 @@
     .tablewrap{overflow-x:auto}
     #summaryTable{min-width:1000px}
     .muted{font-size:12px;color:#60728d}
+
+    /* ===== Modal ===== */
+    .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.35);z-index:10000}
+    .modal.show{display:flex}
+    .dialog{background:#fff;border:1px solid #e6eef8;border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.25);margin-top:24px;width:min(980px,96vw);max-height:92vh;display:flex;flex-direction:column}
+    .dialog header{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #e6eef8;padding:10px 12px;border-radius:14px 14px 0 0;display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .dialog h2{margin:0;font-size:18px}
+    .dialog .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .dialog .scroll{overflow:auto;padding:12px}
+    .tabs{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+    .tab{padding:6px 10px;border:1px solid #e3eaf5;border-radius:10px;background:#fff;cursor:pointer}
+    .tab.active{outline:2px solid var(--acc)}
+
+    /* דקים יותר בטבלאות במודל */
+    .modal table td,.modal table th{padding:6px 8px;line-height:1.25}
+
+    .sumgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .box{border:1px solid #e6eef8;border-radius:10px;padding:10px}
+    .sumrow{display:flex;justify-content:space-between;gap:8px;margin:4px 0}
+
+    .hscroll{overflow-x:auto}
+    .hscroll table{min-width:900px}
+
+    @media (max-width:720px){
+      .sumgrid{grid-template-columns:1fr}
+      .dialog{max-height:96vh}
+      .dialog header{gap:6px}
+    }
   </style>
 
   <!-- ספריות: SheetJS ו-XlsxPopulate (CDN) -->
@@ -34,8 +64,8 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
 </head>
 <body>
-  <div class="ver">גרסה נטענת כעת: v2.0.1 (inline)</div>
-  <header><b>אפליקציית חישוב משכורות — Inline Build</b></header>
+  <div class="ver">גרסה: v2.1.0 (inline + Employee Card)</div>
+  <header><b>אפליקציית חישוב משכורות</b></header>
 
   <div class="wrap">
     <div class="card">
@@ -51,6 +81,7 @@
           </select>
         </div>
         <div class="col" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="openCardBtn" class="btn" disabled>כרטיס עובד</button>
           <button id="exportDaily" class="btn" disabled>ייצוא פירוט יומי (XLSX)</button>
           <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (XLSX)</button>
         </div>
@@ -61,9 +92,10 @@
           <button id="clearSession" class="btn" type="button">ניקוי סשן</button>
         </div>
       </div>
-      <div class="muted">טיפ: פתח F12 → Console. אמורים להופיע לוגים "[payroll]".</div>
+      <div class="muted">טיפ: F12 → Console (חפשו לוגים “[payroll]”).</div>
     </div>
 
+    <!-- סיכום חודשי -->
     <div class="card" style="margin-top:12px">
       <div class="tablewrap">
         <table id="summaryTable">
@@ -96,8 +128,112 @@
     </div>
   </div>
 
+  <!-- ===== Modal: Employee Card ===== -->
+  <div id="empModal" class="modal" aria-hidden="true">
+    <div class="dialog">
+      <header>
+        <div class="meta" style="gap:6px">
+          <button id="empPrev" class="btn small" type="button">◀︎ קודם</button>
+          <button id="empNext" class="btn small" type="button">הבא ▶︎</button>
+          <h2 id="empModalTitle" style="margin-inline:8px">כרטיס עובד</h2>
+          <select id="empMonthSel" class="inp" style="width:auto;min-width:130px"></select>
+        </div>
+        <div class="meta">
+          <button id="empClose" class="btn small" type="button">סגור</button>
+        </div>
+      </header>
+
+      <div class="scroll">
+        <div class="tabs">
+          <button id="tab-config"  class="tab active" type="button">פרטי שכר</button>
+          <button id="tab-daily"   class="tab"         type="button">פירוט יומי</button>
+          <button id="tab-punches" class="tab"         type="button">משמרות</button>
+        </div>
+
+        <!-- פרטי שכר -->
+        <section id="panel-config">
+          <div class="sumgrid">
+            <div class="box">
+              <h3 style="margin:0 0 6px 0">מצב חישוב ושכר לשעה</h3>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <label>מצב חישוב
+                  <select id="empMode" class="inp" style="min-width:200px">
+                    <option value="A">מצב A – נוספות יומיות (9/11)</option>
+                    <option value="B">מצב B – ללא נוספות</option>
+                  </select>
+                </label>
+                <label>שכר לשעה
+                  <input id="empRate" type="number" min="0" step="0.01" class="inp" style="min-width:140px">
+                </label>
+              </div>
+            </div>
+
+            <div class="box">
+              <h3 style="margin:0 0 6px 0">סיכומים</h3>
+              <div class="sumrow"><span>שעות משוקללות:</span><b id="empWgt">0.00</b></div>
+              <div class="sumrow"><span>שכר בסיס:</span><b id="empBase">0.00</b></div>
+              <div class="sumrow"><span>סעיפי שכר (נסיעות+טיפים+תוספת−מקדמה):</span><b id="empExtrasSum">0.00</b></div>
+              <hr style="border:none;border-top:1px solid #eef2f9;margin:8px 0">
+              <div class="sumrow"><span>שכר ברוטו:</span><b id="empFinal">0.00</b></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- פירוט יומי + סעיפים -->
+        <section id="panel-daily" style="display:none">
+          <div class="box" style="margin-bottom:10px">
+            <h3 style="margin:0 0 6px 0">סעיפים לחודש הנבחר</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <label>נסיעות <input id="extra_travel" type="number" step="0.01" class="inp" style="min-width:120px"></label>
+              <label>טיפים <input id="extra_tips" type="number" step="0.01" class="inp" style="min-width:120px"></label>
+              <label>תוספת שכר <input id="extra_bonus" type="number" step="0.01" class="inp" style="min-width:120px"></label>
+              <label>החזר מקדמה <input id="extra_advance" type="number" step="0.01" class="inp" style="min-width:120px"></label>
+              <button id="saveExtrasBtn" class="btn" type="button">שמירה</button>
+            </div>
+          </div>
+
+          <div class="hscroll">
+            <table id="empCardDaily">
+              <thead>
+                <tr>
+                  <th>תאריך</th>
+                  <th>סה"כ שעות</th>
+                  <th>רגיל 100%</th>
+                  <th>נוספות 125%</th>
+                  <th>נוספות 150%</th>
+                  <th>שבת 150%</th>
+                  <th>שעות משוקללות</th>
+                  <th>שכר יום</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- משמרות -->
+        <section id="panel-punches" style="display:none">
+          <div class="hscroll">
+            <table id="empPunches">
+              <thead>
+                <tr>
+                  <th>תאריך</th>
+                  <th>יום</th>
+                  <th>כניסה</th>
+                  <th>יציאה</th>
+                  <th>סה"כ</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
 <script>
-/* app inline – v2.0.1 */
+/* app inline – v2.1.0 */
 
 //////////////////////////// Utils ////////////////////////////
 const $ = sel => document.querySelector(sel);
@@ -107,12 +243,14 @@ const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dayEnd   = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()+1);
 const hours    = ms => ms/36e5;
 const two      = n => String(n).padStart(2,'0');
+const hhmm     = d => two(d.getHours())+':'+two(d.getMinutes());
+const wdHe     = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
 const STORAGE_KEY = 'payrollSessionV7';
 function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
 function log(...a){ try{ console.log('[payroll]', ...a);}catch(_){ } }
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
 
-//////////////////// Excel date/parse helpers ////////////////////
+//////////////////// Excel helpers ////////////////////
 function excelSerialToDate(n){
   if (typeof n !== 'number' || !isFinite(n) || n < 20000 || n > 60000) return null;
   const epoch = new Date(Date.UTC(1899, 11, 30));
@@ -143,7 +281,7 @@ function parseHebDateTime(v){
   return isNaN(dt) ? null : dt;
 }
 
-//////////////////// Parsing workbook (CSV/XLSX) ////////////////////
+//////////////////// Read workbook (CSV/XLSX) ////////////////////
 async function readWorkbook(file){
   if (!window.XLSX) { alert('XLSX לא נטען'); throw new Error('XLSX missing'); }
   const ext = file.name.toLowerCase().split('.').pop();
@@ -168,13 +306,13 @@ async function readWorkbook(file){
         return x;
       }));
     }
-    allRows.push([]); // מפריד בין גליונות
+    allRows.push([]);
   }
   log('rows loaded:', allRows.length);
   return allRows;
 }
 
-//////////////////// Parse punches (גמיש) ////////////////////
+//////////////////// Parse punches ////////////////////
 function parsePunches(rows){
   const norm = s => String(s ?? '')
     .replace(/\u00A0/g,' ')
@@ -188,11 +326,9 @@ function parsePunches(rows){
     const cols = row.map(c => norm(c));
     const idxIn  = cols.findIndex(c => /(שעת\s*הגעה|כניסה)/.test(c));
     const idxOut = cols.findIndex(c => /(שעת\s*עזיבה|יציאה)/.test(c));
-    const idxDay = cols.findIndex(c => /\bיום\b/.test(c));
-    if (idxIn !== -1 && idxOut !== -1) return { idxIn, idxOut, idxDay };
+    if (idxIn !== -1 && idxOut !== -1) return { idxIn, idxOut };
     return null;
   }
-
   function isStopRow(row){
     const t = norm(row.join(' '));
     const c0 = norm(row[0] || '');
@@ -204,7 +340,6 @@ function parsePunches(rows){
       titleRe.test(c0)
     );
   }
-
   function lookupEmployeeNear(idx){
     for(let i=Math.max(0, idx-10); i<idx; i++){
       for(const cell of (rows[i]||[])){
@@ -224,11 +359,7 @@ function parsePunches(rows){
     const r0 = norm(row[0] || '');
     if (r0){
       const m = r0.match(titleRe);
-      if (m){
-        currentEmp = normEmpName(m[1]);
-        inTable = false; hdr = null;
-        continue;
-      }
+      if (m){ currentEmp = normEmpName(m[1]); inTable=false; hdr=null; continue; }
     }
     if (!inTable){
       const maybeHdr = findHeaderIndices(row);
@@ -239,14 +370,10 @@ function parsePunches(rows){
       }
       continue;
     }
-    if (isStopRow(row)){
-      inTable = false; hdr = null; currentEmp = null;
-      continue;
-    }
-    const inVal  = row[hdr.idxIn];
-       const outVal = row[hdr.idxOut];
-    const din  = parseHebDateTime(inVal);
-    const dout = parseHebDateTime(outVal);
+    if (isStopRow(row)){ inTable=false; hdr=null; currentEmp=null; continue; }
+
+    const din  = parseHebDateTime(row[hdr.idxIn]);
+    const dout = parseHebDateTime(row[hdr.idxOut]);
     if (din && dout){
       const emp = currentEmp || lookupEmployeeNear(rIdx) || 'לא מזוהה';
       const key = `${normEmpName(emp)}|${din.toISOString()}|${dout.toISOString()}`;
@@ -316,7 +443,7 @@ function applyOvertime(perDayBase, modeByEmp){
   });
 }
 
-//////////////////// Extras ////////////////////
+//////////////////// Extras & config ////////////////////
 function zeroExtras(){ return {travel:0,tips:0,bonus:0,advance:0}; }
 function ensureEmpConfig(emp){
   emp = normEmpName(emp);
@@ -328,6 +455,10 @@ function getExtras(emp, ym){
   const e = ensureEmpConfig(emp).extras;
   return {...(e[ym] || e.__default || zeroExtras())};
 }
+function setExtras(emp, ym, vals){
+  const e = ensureEmpConfig(emp).extras;
+  e[ym] = { travel:+(vals.travel||0), tips:+(vals.tips||0), bonus:+(vals.bonus||0), advance:+(vals.advance||0) };
+}
 
 //////////////////// State ////////////////////
 let punches = [];
@@ -335,17 +466,20 @@ let perDayBase = [];
 let empConfig = {};
 function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode||'A'}; return m; }
 
-//////////////////// UI ////////////////////
+//////////////////// UI (top) ////////////////////
 function renderEmployeeSelect(){
   const fsel = $('#employeeFilter');
   if(!fsel) return;
   const emps = [...new Set(buildDailyBase(punches).map(r=>normEmpName(r.employee)))].sort((a,b)=>a.localeCompare(b,'he'));
   fsel.innerHTML = '<option value="ALL">כל העובדים</option>' + emps.map(e=>`<option>${e}</option>`).join('');
-  fsel.disabled = emps.length===0;
-  $('#exportDaily').disabled = emps.length===0;
-  $('#exportSummary').disabled = emps.length===0;
+  const disabled = emps.length===0;
+  fsel.disabled = disabled;
+  $('#openCardBtn').disabled = disabled;
+  $('#exportDaily').disabled = disabled;
+  $('#exportSummary').disabled = disabled;
 }
 
+//////////////////// Summary table ////////////////////
 function computeSummaryRows() {
   const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
     .map(r => ({...r, employee: normEmpName(r.employee)}));
@@ -441,7 +575,7 @@ function renderMonthlySummaryCard() {
     <td>${fmt2(totals.finalPay)}</td>`;
 }
 
-//////////////////// XLSX export (with SUM & RTL & number formats) ////////////////////
+//////////////////// XLSX export ////////////////////
 async function exportXlsx(filename, headersHeb, rowsArray) {
   const X = window.XlsxPopulate;
   if (!X) { alert('XlsxPopulate לא נטען'); return; }
@@ -475,7 +609,7 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
     }
     const col = sheet.column(idx + 1);
     col.width(Math.min(Math.max(10, maxLen + 2), 40));
-    if (idx > 0) col.style({ numberFormat: "0.00" });
+    if (idx > 1) col.style({ numberFormat: "0.00" }); // להפוך מספרים ל-0.00
   });
 
   const lastRow = rowsArray.length + 1;
@@ -484,6 +618,7 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
     sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
   }
 
+  // שורת סכומים
   const totalRow = lastRow + 1;
   sheet.cell(totalRow, 1).value('סה"כ').style({ bold: true });
   for (let c = 2; c <= headersHeb.length; c++) {
@@ -498,10 +633,10 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode||'A'}; return m; }
 
 function exportDaily(){
   const selEmp = ($('#employeeFilter').value || 'ALL');
-
   const perDayAll = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=>{
     const emp = r.employee;
     const rate = +ensureEmpConfig(emp).rate || 0;
@@ -534,21 +669,13 @@ function exportDaily(){
     };
   });
 
-  const rowsForXlsx = ($('#employeeFilter').value === 'ALL')
-    ? perDayAll
-    : perDayAll.filter(r => r['עובד'] === $('#employeeFilter').value);
-
-  exportXlsx(
-    ($('#employeeFilter').value==='ALL' ? 'per_day.xlsx' : `per_day_${$('#employeeFilter').value}.xlsx`),
+  const rowsForXlsx = (selEmp==='ALL') ? perDayAll : perDayAll.filter(r => r['עובד'] === selEmp);
+  exportXlsx(selEmp==='ALL' ? 'per_day.xlsx' : `per_day_${selEmp}.xlsx`,
     ['עובד','תאריך','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר לשעה','שכר יום','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'],
-    rowsForXlsx
-  );
+    rowsForXlsx);
 }
-
 function exportSummary(){
-  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
-                  .map(r=>({...r, employee:normEmpName(r.employee)}));
-
+  const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig)).map(r=>({...r, employee:normEmpName(r.employee)}));
   const byEmp = new Map();
   for(const r of perDay){
     const emp = r.employee;
@@ -586,13 +713,192 @@ function exportSummary(){
     'החזר מקדמה': +fmt2(r.advance||0),
     'שכר ברוטו': +fmt2(r.finalPay||0)
   }));
-
-  exportXlsx(
-    'summary.xlsx',
+  exportXlsx('summary.xlsx',
     ['עובד','סה"כ שעות','רגיל 100%','נוספות 125%','נוספות 150%','שבת 150%','שעות משוקללות','שכר בסיס','נסיעות','טיפים','תוספת שכר','החזר מקדמה','שכר ברוטו'],
-    rowsForXlsx
-  );
+    rowsForXlsx);
 }
+
+//////////////////// Employee Card ////////////////////
+let currentEmpInModal = null;
+let currentMonthKey = null;
+
+function monthsForEmployee(emp){
+  const set = new Set();
+  for(const p of punches.filter(x=> normEmpName(x.employee)===emp)){
+    const d = new Date(p.dtIn);
+    const key = d.getFullYear()+'-'+two(d.getMonth()+1);
+    set.add(key);
+  }
+  return Array.from(set).sort();
+}
+function filterPunchesByMonth(emp, ym){
+  return punches.filter(p=>{
+    if(normEmpName(p.employee)!==emp) return false;
+    const d = new Date(p.dtIn);
+    const key = d.getFullYear()+'-'+two(d.getMonth()+1);
+    return key===ym;
+  });
+}
+function filterPerDayByMonth(emp, ym){
+  const all = applyOvertime(perDayBase, mapConfigMode(empConfig));
+  return all.filter(r=> normEmpName(r.employee)===emp && r.date.slice(0,7)===ym)
+            .map(r=> ({...r, pay: r.weighted * (+ensureEmpConfig(emp).rate || 0)}));
+}
+
+function getEmployeesList(){
+  const set = new Set(punches.map(p=> normEmpName(p.employee)));
+  return Array.from(set).sort((a,b)=> a.localeCompare(b,'he'));
+}
+function openEmployeeCard(emp){
+  emp = normEmpName(emp); if(!emp) return;
+  ensureEmpConfig(emp); currentEmpInModal = emp;
+  $('#empModalTitle').textContent = `כרטיס עובד – ${emp}`;
+  $('#empMode').value = ensureEmpConfig(emp).mode || 'A';
+  $('#empRate').value = +ensureEmpConfig(emp).rate || 0;
+
+  const months = monthsForEmployee(emp);
+  const monthSel = $('#empMonthSel'); monthSel.innerHTML='';
+  if(months.length===0){ monthSel.innerHTML = '<option value="">—</option>'; currentMonthKey = null; }
+  else { currentMonthKey = months[months.length-1]; monthSel.innerHTML = months.map(m=> `<option value="${m}">${m}</option>`).join(''); monthSel.value = currentMonthKey; }
+
+  loadExtrasIntoForm(emp, currentMonthKey);
+  renderEmpDailyPanel(emp, currentMonthKey);
+  renderEmpPunchesPanel(emp, currentMonthKey);
+  updateModalTotals(); updateModalFinal();
+
+  $('#empModal').classList.add('show');
+  $('#empModal').setAttribute('aria-hidden','false');
+  document.body.style.overflow='hidden';
+}
+function closeEmpModal(){
+  $('#empModal').classList.remove('show');
+  $('#empModal').setAttribute('aria-hidden','true');
+  document.body.style.overflow='';
+  currentEmpInModal = null;
+}
+window.closeEmpModal = closeEmpModal;
+
+function setActiveTab(id){
+  ['config','daily','punches'].forEach(k=>{
+    $('#tab-'+k).classList.toggle('active', k===id);
+    $('#panel-'+k).style.display = (k===id ? '' : 'none');
+  });
+}
+
+// שינוי חודש
+$('#empMonthSel')?.addEventListener('change', ()=>{
+  currentMonthKey = $('#empMonthSel').value || null;
+  if(!currentEmpInModal) return;
+  loadExtrasIntoForm(currentEmpInModal, currentMonthKey);
+  renderEmpDailyPanel(currentEmpInModal, currentMonthKey);
+  renderEmpPunchesPanel(currentEmpInModal, currentMonthKey);
+  updateModalTotals(); updateModalFinal();
+});
+
+// שינוי מצב/שכר
+$('#empMode')?.addEventListener('change', ()=>{
+  if(!currentEmpInModal) return;
+  ensureEmpConfig(currentEmpInModal).mode = $('#empMode').value;
+  saveLocal();
+  if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+  renderMonthlySummaryCard();
+});
+$('#empRate')?.addEventListener('input', ()=>{
+  if(!currentEmpInModal) return;
+  ensureEmpConfig(currentEmpInModal).rate = +$('#empRate').value || 0;
+  saveLocal();
+  if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+  renderMonthlySummaryCard();
+});
+
+// סעיפים
+function readExtrasFromForm(){
+  return {
+    travel: +($('#extra_travel').value||0),
+    tips: +($('#extra_tips').value||0),
+    bonus: +($('#extra_bonus').value||0),
+    advance: +($('#extra_advance').value||0)
+  };
+}
+function loadExtrasIntoForm(emp, ym){
+  const ex = ym ? getExtras(emp, ym) : {travel:0,tips:0,bonus:0,advance:0};
+  $('#extra_travel').value = +ex.travel || 0;
+  $('#extra_tips').value   = +ex.tips   || 0;
+  $('#extra_bonus').value  = +ex.bonus  || 0;
+  $('#extra_advance').value= +ex.advance|| 0;
+}
+$('#saveExtrasBtn')?.addEventListener('click', ()=>{
+  if(!currentEmpInModal) return;
+  if(!currentMonthKey){ alert('אין חודש נבחר.'); return; }
+  setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm());
+  updateModalTotals(); updateModalFinal();
+  saveLocal(); renderMonthlySummaryCard();
+});
+
+// טבלאות בכרטיס
+function renderEmpDailyPanel(emp, ym){
+  const rows = ym ? filterPerDayByMonth(emp, ym) : [];
+  const tb = $('#empCardDaily tbody'); if(!tb) return;
+  tb.innerHTML='';
+  for(const r of rows){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.date}</td>
+      <td>${fmt2(r.total)}</td>
+      <td>${fmt2(r.reg)}</td>
+      <td>${fmt2(r.ot125)}</td>
+      <td>${fmt2(r.ot150)}</td>
+      <td>${fmt2(r.shabbat150)}</td>
+      <td>${fmt2(r.weighted)}</td>
+      <td>${fmt2(r.pay)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function renderEmpPunchesPanel(emp, ym){
+  const sh = ym ? filterPunchesByMonth(emp, ym) : [];
+  const tb = $('#empPunches tbody'); if(!tb) return;
+  tb.innerHTML='';
+  for(const p of sh.sort((a,b)=> a.dtIn - b.dtIn)){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${toISODate(p.dtIn)}</td>
+      <td>${wdHe(p.dtIn.getDay())}</td>
+      <td>${hhmm(p.dtIn)}</td>
+      <td>${hhmm(p.dtOut)}</td>
+      <td>${fmt2(hours(p.dtOut - p.dtIn))}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function updateModalTotals(){
+  if(!currentEmpInModal || !currentMonthKey){
+    $('#empWgt').textContent='0'; $('#empBase').textContent='0'; $('#empExtrasSum').textContent='0';
+    return;
+  }
+  const rows = filterPerDayByMonth(currentEmpInModal, currentMonthKey);
+  let wsum = 0, base = 0;
+  for(const r of rows){ wsum += r.weighted; base += r.pay; }
+  $('#empWgt').textContent = fmt2(wsum);
+  $('#empBase').textContent = fmt2(base);
+
+  const ex = getExtras(currentEmpInModal, currentMonthKey);
+  const extrasSum = (+ex.travel||0) + (+ex.tips||0) + (+ex.bonus||0) - (+ex.advance||0);
+  $('#empExtrasSum').textContent = fmt2(extrasSum);
+}
+function updateModalFinal(){
+  const base = +($('#empBase').textContent||0);
+  const exSum = +($('#empExtrasSum').textContent||0);
+  $('#empFinal').textContent = fmt2(base + exSum);
+}
+
+// דפדוף בין עובדים
+function gotoEmployee(dir){
+  const list = getEmployeesList(); if(!list.length || !currentEmpInModal) return;
+  const i = list.indexOf(currentEmpInModal);
+  const j = (i + dir + list.length) % list.length;
+  openEmployeeCard(list[j]);
+}
+$('#empPrev')?.addEventListener('click', ()=> gotoEmployee(-1));
+$('#empNext')?.addEventListener('click', ()=> gotoEmployee(+1));
 
 //////////////////// Session ////////////////////
 function serializeSession(){
@@ -632,12 +938,18 @@ async function handleFile(ev){
     log('OK: file parsed, employees:', new Set(perDayBase.map(r=>r.employee)).size);
   }catch(err){ console.error(err); alert('שגיאה בקריאת הקובץ'); }
 }
+function openCardFromSelect(){
+  const emp = $('#employeeFilter').value;
+  if(emp && emp!=='ALL') openEmployeeCard(emp);
+  else alert('נא לבחור עובד מהרשימה.');
+}
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  console.log('INDEX OK v2.0.1'); // חיווי מיידי בקונסול
+  console.log('INDEX OK v2.1.0');
   $('#file')?.addEventListener('change', handleFile);
   $('#exportDaily')?.addEventListener('click', exportDaily);
   $('#exportSummary')?.addEventListener('click', exportSummary);
+  $('#openCardBtn')?.addEventListener('click', openCardFromSelect);
 
   $('#exportJSON')?.addEventListener('click', ()=>{
     try{
@@ -656,6 +968,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('#clearSession')?.addEventListener('click', ()=>{
     if(confirm('לנקות סשן מקומי?')){ clearLocal(); alert('נוקה הזיכרון המקומי.'); }
   });
+
+  $('#empClose')?.addEventListener('click', closeEmpModal);
+  $('#tab-config')?.addEventListener('click', ()=> setActiveTab('config'));
+  $('#tab-daily') ?.addEventListener('click', ()=> setActiveTab('daily'));
+  $('#tab-punches')?.addEventListener('click', ()=> setActiveTab('punches'));
 
   $('#employeeFilter')?.addEventListener('change', renderMonthlySummaryCard);
   loadLocalIfAny();
