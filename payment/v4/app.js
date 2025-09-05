@@ -1,4 +1,4 @@
-/* app.js – v2.0.0 (baseline עובד: טעינת XLSX/CSV/JSON + סיכום + ייצוא) */
+/* app.js – v1.9.9 */
 
 //////////////////////////// Utils ////////////////////////////
 const $ = sel => document.querySelector(sel);
@@ -12,7 +12,7 @@ const hhmm     = d => two(d.getHours())+':'+two(d.getMinutes());
 const wdHe     = i => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][i];
 const STORAGE_KEY = 'payrollSessionV7';
 function normEmpName(name){ return String(name||'').replace(/\s+/g,' ').trim(); }
-function log(...a){ try{ console.log('[payroll]', ...a); }catch(_){} }
+function log(...a){ try{ console.log(...a); }catch(_){} }
 function overlap(a0,a1,b0,b1){ const s = a0>b0? a0:b0; const e = a1<b1? a1:b1; return Math.max(0, hours(e - s)); }
 
 //////////////////// Excel date/parse helpers ////////////////////
@@ -71,13 +71,13 @@ async function readWorkbook(file){
         return x;
       }));
     }
-    allRows.push([]); // מפריד בין גליונות
+    allRows.push([]); // מרווח בין גליונות
   }
-  log('rows loaded:', allRows.length);
+  log('[payroll] rows loaded:', allRows.length);
   return allRows;
 }
 
-//////////////////// Parse punches (גמיש) ////////////////////
+//////////////////// Parse punches (flexible header) ////////////////////
 function parsePunches(rows){
   const norm = s => String(s ?? '')
     .replace(/\u00A0/g,' ')
@@ -85,7 +85,6 @@ function parsePunches(rows){
     .replace(/\s+/g,' ')
     .trim();
 
-  // דו"ח שעות עבודה עבור <שם> בין ...
   const titleRe = /דו.?ח.*שעות.*עבודה.*עבור\s+(.+?)\s+בין/i;
 
   function findHeaderIndices(row){
@@ -126,6 +125,7 @@ function parsePunches(rows){
   for (let rIdx = 0; rIdx < rows.length; rIdx++){
     const row = rows[rIdx] || [];
     const r0 = norm(row[0] || '');
+
     if (r0){
       const m = r0.match(titleRe);
       if (m){
@@ -134,6 +134,7 @@ function parsePunches(rows){
         continue;
       }
     }
+
     if (!inTable){
       const maybeHdr = findHeaderIndices(row);
       if (maybeHdr){
@@ -143,14 +144,17 @@ function parsePunches(rows){
       }
       continue;
     }
+
     if (isStopRow(row)){
       inTable = false; hdr = null; currentEmp = null;
       continue;
     }
+
     const inVal  = row[hdr.idxIn];
     const outVal = row[hdr.idxOut];
     const din  = parseHebDateTime(inVal);
     const dout = parseHebDateTime(outVal);
+
     if (din && dout){
       const emp = currentEmp || lookupEmployeeNear(rIdx) || 'לא מזוהה';
       const key = `${normEmpName(emp)}|${din.toISOString()}|${dout.toISOString()}`;
@@ -160,6 +164,7 @@ function parsePunches(rows){
       }
     }
   }
+
   log('punches parsed:', punches.length);
   return punches;
 }
@@ -202,7 +207,7 @@ function buildDailyBase(_punches){
       base.set(key, obj);
     }
   }
-  return Array.from(base.values()).sort((a,b)=> (a.employee.localeCompare(b.employee) || a.date.localeCompare(b.date)));
+  return Array.from(base.values()).sort((a,b)=> (a.employee.localeCompare(b,'he') || a.date.localeCompare(b)));
 }
 function applyOvertime(perDayBase, modeByEmp){
   return perDayBase.map(r=>{
@@ -286,12 +291,15 @@ function renderEmployeeSelect(){
   if(!fsel) return;
   const emps = [...new Set(buildDailyBase(punches).map(r=>normEmpName(r.employee)))].sort((a,b)=>a.localeCompare(b,'he'));
   fsel.innerHTML = '<option value="ALL">כל העובדים</option>' + emps.map(e=>`<option>${e}</option>`).join('');
-  fsel.disabled = emps.length===0;
-  $('#exportDaily').disabled = emps.length===0;
-  $('#exportSummary').disabled = emps.length===0;
+
+  const hasData = emps.length>0 || perDayBase.length>0;
+  fsel.disabled = !hasData;
+  $('#openCardBtn').disabled   = !hasData;
+  $('#exportDaily').disabled   = !hasData;
+  $('#exportSummary').disabled = !hasData;
 }
 
-//////////////////// XLSX helpers (RTL + Bold header + zebra + numbers + SUM) ////////////////////
+//////////////////// XLSX helpers (RTL + Bold header + zebra) ////////////////////
 async function exportXlsx(filename, headersHeb, rowsArray) {
   const X = window.XlsxPopulate;
   if (!X) { alert('XlsxPopulate לא נטען'); return; }
@@ -323,24 +331,14 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
       const v = (r[h] == null ? '' : String(r[h]));
       if (v.length > maxLen) maxLen = v.length;
     }
-    const col = sheet.column(idx + 1);
-    col.width(Math.min(Math.max(10, maxLen + 2), 40));
-    if (idx > 0) col.style({ numberFormat: "0.00" });
+    sheet.column(idx + 1).width(Math.min(Math.max(10, maxLen + 2), 40));
   });
 
   const lastRow = rowsArray.length + 1;
-  const LIGHT = "EAF5FF", DARK  = "D6ECFF";
+  const LIGHT = "EAF5FF";
+  const DARK  = "D6ECFF";
   for (let r = 2; r <= lastRow; r++) {
     sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
-  }
-
-  // SUM row
-  const totalRow = lastRow + 1;
-  sheet.cell(totalRow, 1).value('סה"כ').style({ bold: true });
-  for (let c = 2; c <= headersHeb.length; c++) {
-    const colLetter = sheet.column(c).letter();
-    const formula = `SUM(${colLetter}2:${colLetter}${lastRow})`;
-    sheet.cell(totalRow, c).formula(formula).style({ bold: true, numberFormat: "0.00" });
   }
 
   const blob = await wb.outputAsync();
@@ -351,7 +349,7 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
   URL.revokeObjectURL(a.href);
 }
 
-//////////////////// Export XLSX (יומי + חודשי) ////////////////////
+//////////////////// Export XLSX ////////////////////
 function mapConfigMode(cfg){ const m={}; for(const [k,v] of Object.entries(cfg)) m[normEmpName(k)]={mode:v.mode}; return m; }
 
 function exportDaily(){
@@ -373,19 +371,23 @@ function exportDaily(){
     return {
       employee: emp,
       date: r.date,
-      total: +fmt2(r.total),
-      reg_100: +fmt2(r.reg),
-      ot_125: +fmt2(r.ot125),
-      ot_150: +fmt2(r.ot150),
-      shabbat_150: +fmt2(r.shabbat150),
-      weighted_hours: +fmt2(r.weighted),
-      hourly_rate: +fmt2(rate),
-      pay: +fmt2(pay),
-      travel: +fmt2(travel),
-      tips: +fmt2(tips),
-      bonus: +fmt2(bonus),
-      advance: +fmt2(advance),
-      final_pay: +fmt2(finalPay) // מספר אמיתי
+      total: fmt2(r.total),
+      reg_100: fmt2(r.reg),
+      ot_125: fmt2(r.ot125),
+      ot_150: fmt2(r.ot150),
+      shabbat_150: fmt2(r.shabbat150),
+      weighted_hours: fmt2(r.weighted),
+      hourly_rate: rate,
+      pay: fmt2(pay),
+      travel: fmt2(travel),
+      tips: fmt2(tips),
+      bonus: fmt2(bonus),
+      advance: fmt2(advance),
+      // כאן השארנו את שכר ברוטו כמספר אמיתי (לא fmt2) כדי שתוכל SUM באקסל,
+      // אבל נציג אותו בשני מקומות:
+      // 1) בשדה הנתון ל-XLSX נכניס מספר (לא מחרוזת)
+      // 2) בשורת ההדפסה (rowsForXlsx) נדאג שהוא לא יומר למחרוזת
+      final_pay: (pay + extrasSum)
     };
   });
 
@@ -411,7 +413,7 @@ function exportDaily(){
     'טיפים': r.tips,
     'תוספת שכר': r.bonus,
     'החזר מקדמה': r.advance,
-    'שכר ברוטו': r.final_pay
+    'שכר ברוטו': +r.final_pay // מספר, לא מחרוזת
   }));
 
   exportXlsx(selEmp==='ALL' ? 'per_day.xlsx' : `per_day_${selEmp}.xlsx`, headersHeb, rowsForXlsx);
@@ -445,18 +447,18 @@ function exportSummary(){
 
   const rows = Array.from(byEmp.values()).sort((a,b)=> a.employee.localeCompare(b,'he')).map(r=> ({
     employee:r.employee,
-    total:+fmt2(r.total),
-    reg_100:+fmt2(r.reg),
-    ot_125:+fmt2(r.ot125),
-    ot_150:+fmt2(r.ot150),
-    shabbat_150:+fmt2(r.shabbat150),
-    weighted_hours:+fmt2(r.weighted),
-    base_pay:+fmt2(r.basePay),
-    travel:+fmt2(r.travel||0),
-    tips:+fmt2(r.tips||0),
-    bonus:+fmt2(r.bonus||0),
-    advance:+fmt2(r.advance||0),
-    final_pay:+fmt2(r.finalPay||0)
+    total:fmt2(r.total),
+    reg_100:fmt2(r.reg),
+    ot_125:fmt2(r.ot125),
+    ot_150:fmt2(r.ot150),
+    shabbat_150:fmt2(r.shabbat150),
+    weighted_hours:fmt2(r.weighted),
+    base_pay:fmt2(r.basePay),
+    travel:fmt2(r.travel||0),
+    tips:fmt2(r.tips||0),
+    bonus:fmt2(r.bonus||0),
+    advance:fmt2(r.advance||0),
+    final_pay:+(r.finalPay||0) // מספר ל-SUM
   }));
 
   const headersHeb = [
@@ -477,13 +479,13 @@ function exportSummary(){
     'טיפים': r.tips,
     'תוספת שכר': r.bonus,
     'החזר מקדמה': r.advance,
-    'שכר ברוטו': r.final_pay
+    'שכר ברוטו': +r.final_pay // מספר, לא מחרוזת
   }));
 
   exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
 }
 
-//////////////////// Monthly summary render ////////////////////
+//////////////////// Monthly summary card (homepage) ////////////////////
 function computeSummaryRows() {
   const perDay = applyOvertime(perDayBase, mapConfigMode(empConfig))
     .map(r => ({...r, employee: normEmpName(r.employee)}));
@@ -579,7 +581,195 @@ function renderMonthlySummaryCard() {
     <td>${fmt2(totals.finalPay)}</td>`;
 }
 
-//////////////////// Bindings ////////////////////
+//////////////////// Employee Card (Modal) ////////////////////
+let currentEmpInModal = null;
+let currentMonthKey = null; // "YYYY-MM"
+
+function monthsForEmployee(emp){
+  const set = new Set();
+  for(const p of punches.filter(x=> normEmpName(x.employee)===emp)){
+    const d = new Date(p.dtIn);
+    const key = d.getFullYear()+'-'+two(d.getMonth()+1);
+    set.add(key);
+  }
+  return Array.from(set).sort();
+}
+function filterPunchesByMonth(emp, ym){
+  return punches.filter(p=>{
+    if(normEmpName(p.employee)!==emp) return false;
+    const d = new Date(p.dtIn);
+    const key = d.getFullYear()+'-'+two(d.getMonth()+1);
+    return key===ym;
+  });
+}
+function filterPerDayByMonth(emp, ym){
+  const all = applyOvertime(perDayBase, mapConfigMode(empConfig));
+  return all.filter(r=> normEmpName(r.employee)===emp && r.date.slice(0,7)===ym)
+            .map(r=> ({...r, pay: r.weighted * (+ensureEmpConfig(emp).rate || 0)}));
+}
+
+// פתיחת כרטיס
+function openEmployeeCard(emp){
+  emp = normEmpName(emp);
+  if(!emp) return;
+  ensureEmpConfig(emp);
+  currentEmpInModal = emp;
+  $('#empModalTitle').textContent = `כרטיס עובד – ${emp}`;
+
+  $('#empMode').value = ensureEmpConfig(emp).mode || 'A';
+  $('#empRate').value = +ensureEmpConfig(emp).rate || 0;
+
+  const months = monthsForEmployee(emp);
+  const monthSel = $('#empMonthSel'); monthSel.innerHTML='';
+  if(months.length===0){ monthSel.innerHTML = '<option value="">—</option>'; currentMonthKey = null; }
+  else { currentMonthKey = months[months.length-1]; monthSel.innerHTML = months.map(m=> `<option value="${m}">${m}</option>`).join(''); monthSel.value = currentMonthKey; }
+
+  loadExtrasIntoForm(emp, currentMonthKey);
+
+  renderEmpDailyPanel(emp, currentMonthKey);
+  renderEmpPunchesPanel(emp, currentMonthKey);
+  updateModalTotals();
+  updateModalFinal();
+
+  $('#empModal').classList.add('show');
+  $('#empModal').setAttribute('aria-hidden','false');
+}
+
+function closeEmpModal(){
+  $('#empModal').classList.remove('show');
+  $('#empModal').setAttribute('aria-hidden','true');
+  currentEmpInModal = null;
+}
+window.closeEmpModal = closeEmpModal;
+
+// טאבים
+function setActiveTab(id){
+  ['config','daily','punches'].forEach(k=>{
+    $('#tab-'+k).classList.toggle('active', k===id);
+    $('#panel-'+k).style.display = (k===id ? '' : 'none');
+  });
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#tab-config').onclick = ()=> setActiveTab('config');
+  $('#tab-daily').onclick = ()=> setActiveTab('daily');
+  $('#tab-punches').onclick = ()=> setActiveTab('punches');
+});
+
+// שינוי חודש בכרטיס
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#empMonthSel').addEventListener('change', ()=>{
+    currentMonthKey = $('#empMonthSel').value || null;
+    if(!currentEmpInModal) return;
+    loadExtrasIntoForm(currentEmpInModal, currentMonthKey);
+    renderEmpDailyPanel(currentEmpInModal, currentMonthKey);
+    renderEmpPunchesPanel(currentEmpInModal, currentMonthKey);
+    updateModalTotals();
+    updateModalFinal();
+  });
+});
+
+// שינויי מצב/שכר לשעה
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#empMode').addEventListener('change', ()=>{
+    if(!currentEmpInModal) return;
+    ensureEmpConfig(currentEmpInModal).mode = $('#empMode').value;
+    saveLocal();
+    if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+    renderMonthlySummaryCard();
+  });
+  $('#empRate').addEventListener('input', ()=>{
+    if(!currentEmpInModal) return;
+    ensureEmpConfig(currentEmpInModal).rate = +$('#empRate').value || 0;
+    saveLocal();
+    if(currentMonthKey){ renderEmpDailyPanel(currentEmpInModal, currentMonthKey); updateModalTotals(); updateModalFinal(); }
+    renderMonthlySummaryCard();
+  });
+});
+
+// סעיפים (בטאב פירוט יומי)
+function readExtrasFromForm(){
+  return {
+    travel: +($('#extra_travel').value||0),
+    tips: +($('#extra_tips').value||0),
+    bonus: +($('#extra_bonus').value||0),
+    advance: +($('#extra_advance').value||0)
+  };
+}
+function loadExtrasIntoForm(emp, ym){
+  const ex = ym ? getExtras(emp, ym) : {travel:0,tips:0,bonus:0,advance:0};
+  $('#extra_travel').value = +ex.travel || 0;
+  $('#extra_tips').value   = +ex.tips   || 0;
+  $('#extra_bonus').value  = +ex.bonus  || 0;
+  $('#extra_advance').value= +ex.advance|| 0;
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('#saveExtrasBtn').onclick = ()=>{
+    if(!currentEmpInModal) return;
+    if(!currentMonthKey){ alert('אין חודש נבחר.'); return; }
+    setExtras(currentEmpInModal, currentMonthKey, readExtrasFromForm());
+    updateModalTotals();
+    updateModalFinal();
+    saveLocal();
+    renderMonthlySummaryCard();
+  };
+});
+
+// פאנלים בכרטיס
+function renderEmpDailyPanel(emp, ym){
+  const rows = ym ? filterPerDayByMonth(emp, ym) : [];
+  const tb = $('#empCardDaily tbody'); if(!tb) return;
+  tb.innerHTML='';
+  for(const r of rows){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.date}</td>
+      <td>${fmt2(r.total)}</td>
+      <td>${fmt2(r.reg)}</td>
+      <td>${fmt2(r.ot125)}</td>
+      <td>${fmt2(r.ot150)}</td>
+      <td>${fmt2(r.shabbat150)}</td>
+      <td>${fmt2(r.weighted)}</td>
+      <td>${fmt2(r.pay)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function renderEmpPunchesPanel(emp, ym){
+  const sh = ym ? filterPunchesByMonth(emp, ym) : [];
+  const tb = $('#empPunches tbody'); if(!tb) return;
+  tb.innerHTML='';
+  for(const p of sh.sort((a,b)=> a.dtIn - b.dtIn)){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${toISODate(p.dtIn)}</td>
+      <td>${wdHe(p.dtIn.getDay())}</td>
+      <td>${hhmm(p.dtIn)}</td>
+      <td>${hhmm(p.dtOut)}</td>
+      <td>${fmt2(hours(p.dtOut - p.dtIn))}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function updateModalTotals(){
+  if(!currentEmpInModal || !currentMonthKey){
+    $('#empWgt').textContent='0'; $('#empBase').textContent='0'; $('#empExtrasSum').textContent='0';
+    return;
+  }
+  const rows = filterPerDayByMonth(currentEmpInModal, currentMonthKey);
+  let wsum = 0, base = 0;
+  for(const r of rows){ wsum += r.weighted; base += r.pay; }
+  $('#empWgt').textContent = fmt2(wsum);
+  $('#empBase').textContent = fmt2(base);
+
+  const ex = getExtras(currentEmpInModal, currentMonthKey);
+  const extrasSum = (+ex.travel||0) + (+ex.tips||0) + (+ex.bonus||0) - (+ex.advance||0);
+  $('#empExtrasSum').textContent = fmt2(extrasSum);
+}
+function updateModalFinal(){
+  const base = +($('#empBase').textContent||0);
+  const exSum = +($('#empExtrasSum').textContent||0);
+  $('#empFinal').textContent = fmt2(base + exSum);
+}
+
+//////////////////// File Handling & Bindings ////////////////////
 async function handleFile(ev){
   const file = ev.target.files[0]; if(!file) return;
   try{
@@ -587,20 +777,56 @@ async function handleFile(ev){
     punches = parsePunches(rows).map(p=> ({...p, employee:normEmpName(p.employee)}));
     if(punches.length===0){ alert('לא נמצאו נתוני משמרות בקובץ.'); return; }
     perDayBase = buildDailyBase(punches);
+
+    // ודא שיש קונפיג לכל עובד
     for(const e of new Set(perDayBase.map(r=>normEmpName(r.employee)))) ensureEmpConfig(e);
+
     renderEmployeeSelect();
     renderMonthlySummaryCard();
     saveLocal();
+
+    // הפעל כפתורים
+    $('#exportDaily').disabled   = false;
+    $('#exportSummary').disabled = false;
+    $('#openCardBtn').disabled   = false;
+
     log('OK: file parsed, employees:', new Set(perDayBase.map(r=>r.employee)).size);
   }catch(err){ console.error(err); alert('שגיאה בקריאת הקובץ'); }
 }
+function openCardFromSelect(){
+  const emp = $('#employeeFilter').value;
+  if(emp && emp!=='ALL') openEmployeeCard(emp);
+  else alert('נא לבחור עובד מהרשימה.');
+}
 
+// דפדוף בין עובדים
+function getEmployeesList(){
+  const set = new Set(perDayBase.map(r=> normEmpName(r.employee)));
+  return Array.from(set).sort((a,b)=> a.localeCompare(b,'he'));
+}
+function openNextEmployee(){
+  if(!currentEmpInModal) return;
+  const emps = getEmployeesList();
+  const i = emps.indexOf(currentEmpInModal);
+  if(i === -1) return;
+  const nxt = (i+1) % emps.length;
+  openEmployeeCard(emps[nxt]);
+}
+function openPrevEmployee(){
+  if(!currentEmpInModal) return;
+  const emps = getEmployeesList();
+  const i = emps.indexOf(currentEmpInModal);
+  if(i === -1) return;
+  const prv = (i-1+emps.length) % emps.length;
+  openEmployeeCard(emps[prv]);
+}
+
+//////////////////// Init ////////////////////
 window.addEventListener('DOMContentLoaded', ()=>{
   $('#file')?.addEventListener('change', handleFile);
 
   $('#exportDaily')?.addEventListener('click', exportDaily);
   $('#exportSummary')?.addEventListener('click', exportSummary);
-
   $('#exportJSON')?.addEventListener('click', ()=>{
     try{
       const data = serializeSession();
@@ -619,9 +845,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if(confirm('לנקות סשן מקומי?')){ clearLocal(); alert('נוקה הזיכרון המקומי.'); }
   });
 
-  const empSelTop = $('#employeeFilter');
-  empSelTop?.addEventListener('change', renderMonthlySummaryCard);
+  $('#openCardBtn')?.addEventListener('click', openCardFromSelect);
+  $('#empClose')?.addEventListener('click', closeEmpModal);
 
+  // דפדוף
+  $('#empNext')?.addEventListener('click', openNextEmployee);
+  $('#empPrev')?.addEventListener('click', openPrevEmployee);
+
+  // טעינת נתונים מקומיים אם קיימים
   loadLocalIfAny();
-  log('app v2.0.0 ready');
+
+  // רענון הסיכום במעבר עובד
+  const empSelTop = $('#employeeFilter');
+  if (empSelTop) empSelTop.addEventListener('change', renderMonthlySummaryCard);
 });
