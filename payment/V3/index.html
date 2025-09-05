@@ -3,217 +3,130 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>נונע אפליקציית חישוב משכורות</title>
+  <title>אפליקציית חישוב משכורות</title>
 
-  <!-- אייקון למסך הבית (אנדרואיד/iOS) -->
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-193.png" />
-  <link rel="apple-touch-icon" href="icon-193.png" />
-  <meta name="theme-color" content="#ffffff">
-
-  <!-- Version marker -->
-  <meta name="version" content="v1.7" />
-
+  <!-- פונט אופציונלי -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
 
-  <!-- עקיפת קאש לקבצים חיצוניים -->
-  <link rel="stylesheet" href="./styles.css?v=1.7" />
-
-  <!-- ספריות -->
-  <!-- SheetJS לקריאה בלבד -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <!-- XlsxPopulate לכתיבת XLSX עם עיצוב -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js" defer></script>
-
-  <!-- קובץ האפליקציה -->
-  <script src="./app.js?v=1.7" defer></script>
-
-  <!-- כדי שהכותרת בסיכום לא תהיה דביקה -->
   <style>
-    #summaryTable thead th { position: static; top: auto; }
-    #summaryTable tfoot th, #summaryTable tfoot td { font-weight: 800; }
+    :root{
+      --bg1:#E9FFF7; --bg2:#D7FFF4;
+      --card:#FFFFFF; --card-br:#E5EAF3;
+      --ink:#0b1b2b; --muted:#4b5d77;
+      --acc:#7DB9FF; --acc-2:#9CC7FF; --warn:#FF9AA2;
+      --line:#e8eef7;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--ink);font-family:Heebo,system-ui,Arial,sans-serif}
+    header{padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.45);backdrop-filter:saturate(115%) blur(6px);position:sticky;top:0;z-index:5}
+    h1{margin:0;font-size:20px}
+    .wrap{max-width:1100px;margin:14px auto;padding:0 12px}
+    .card{background:var(--card);border:1px solid var(--card-br);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.08)}
+    .pad{padding:12px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .col{flex:1 1 280px;min-width:0}
+    .inp{width:100%;background:#fff;border:1px solid #d6dbe8;border-radius:12px;padding:10px 12px;color:var(--ink);min-height:40px}
+    .btn{background:var(--acc);color:#0b1b2b;border:0;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer;min-height:40px}
+    .btn.alt{background:var(--acc-2)} .btn.warn{background:var(--warn)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    label{font-size:14px;color:#334b68}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:right;font-size:14px}
+    thead th{position:static;top:auto;background:#f7faff;font-weight:800}
+    tfoot td, tfoot th {font-weight:800}
+    .tablewrap{overflow-x:auto}
+    #summaryTable{min-width:1100px}
+    .foot{margin-top:8px;font-size:12px;color:#4a6278}
+    @media (max-width:600px){
+      .row{flex-direction:column;align-items:stretch}
+      .col, .inp, .btn{width:100%}
+    }
   </style>
+
+  <!-- ספריות נדרשות לטעינת קבצים וייצוא אקסל -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
 </head>
 <body>
-<header>
-  <h1>
-    אפליקציית חישוב משכורות
-    <span style="font-size:12px;color:#888">גרסה v1.7</span>
-  </h1>
-</header>
+  <header><h1>אפליקציית חישוב משכורות</h1></header>
 
-<div class="wrap">
-  <!-- כרטיס עליון: טעינת קובץ + בחירת עובד + פעולות -->
-  <div class="card pad">
-    <div class="row">
-      <div class="col">
-        <label>קובץ Excel/CSV במבנה הקבוע</label><br>
-        <input id="file" type="file" accept=".xlsx,.xls,.csv" class="inp" />
-      </div>
-      <div class="col">
-        <label>בחירת עובד</label><br>
-        <select id="employeeFilter" class="inp" disabled></select>
-      </div>
-      <div class="col btns">
-        <button id="openCardBtn" class="btn alt" disabled>פתח כרטיס עובד</button>
-        <button id="exportDaily" class="btn" disabled>ייצוא פירוט יומי (XLSX)</button>
-        <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (XLSX)</button>
-      </div>
-      <div class="col btns">
-        <button id="exportJSON" class="btn alt" disabled>ייצוא JSON (סשן)</button>
-        <input id="importJSONFile" type="file" accept=".json,application/json" class="inp" style="display:none" />
-        <button id="importJSON" class="btn alt">טעינת JSON</button>
-        <button id="clearSession" class="btn warn">ניקוי סשן</button>
-      </div>
-    </div>
-    <div class="foot">
-      שבת <b>08:00–17:00</b> = 150% (אם משמרת מתחילה בשבת <b>מ-16:00 ומעלה</b> – שעות שבת לא נספרות).
-      נוספות יומיות: מצב A (9/11 → 100%/125%/150%) או מצב B (ללא נוספות).
-    </div>
-  </div>
-
-  <!-- כרטיס: סיכום חודשי -->
-  <div class="card pad" style="margin-top:12px">
-    <div class="pill" style="margin-bottom:10px">סיכום חודשי</div>
-    <div class="tablewrap">
-      <table id="summaryTable">
-        <thead>
-          <tr>
-            <th>עובד</th>
-            <th>סה"כ שעות</th>
-            <th>100%</th>
-            <th>125%</th>
-            <th>150%</th>
-            <th>שבת 150%</th>
-            <th>שעות משוקללות</th>
-            <th>שכר בסיס</th>
-            <th>נסיעות</th>
-            <th>טיפים</th>
-            <th>תוספת</th>
-            <th>החזר מקדמה</th>
-            <th>שכר ברוטו</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-        <tfoot>
-          <tr id="summaryTotalsRow"></tr>
-        </tfoot>
-      </table>
-    </div>
-    <div class="foot small">כולל שורת סכום תחתונה לכל העובדים.</div>
-  </div>
-</div>
-
-<!-- Modal: כרטיס עובד -->
-<div id="empModal" class="modal" aria-hidden="true">
-  <div class="backdrop" onclick="closeEmpModal()"></div>
-  <div class="dialog">
-    <header>
-      <h2 id="empModalTitle">כרטיס עובד</h2>
-      <button class="btn warn" onclick="closeEmpModal()">סגור</button>
-    </header>
-    <div class="content">
-      <div class="tabs">
-        <button id="tab-config" class="tab active">פרטי שכר</button>
-        <button id="tab-daily" class="tab">פירוט יומי + סעיפי שכר</button>
-        <button id="tab-punches" class="tab">משמרות (כניסה/יציאה)</button>
-      </div>
-
-      <div class="grid2">
-        <div>
-          <!-- TAB: פרטי שכר (ללא סעיפים) -->
-          <div id="panel-config">
-            <div class="sumbox">
-              <div class="sumrow">
-                <label>מצב חישוב</label>
-                <select id="empMode" class="inp narrow">
-                  <option value="A">מצב A – נוספות יומיות (9/11)</option>
-                  <option value="B">מצב B – ללא נוספות יומיות</option>
-                </select>
-              </div>
-              <div class="sumrow">
-                <label>שכר לשעה</label>
-                <input id="empRate" type="number" step="0.01" class="inp narrow" />
-              </div>
-            </div>
-            <div class="hr"></div>
-            <div class="pill" style="margin:6px 0">תצוגת חודש</div>
-            <div class="sumrow">
-              <label>חודש (YYYY-MM)</label>
-              <select id="empMonthSel" class="inp narrow"></select>
-            </div>
-          </div>
-
-          <!-- TAB: פירוט יומי + סעיפים -->
-          <div id="panel-daily" style="display:none">
-            <div class="pill" style="margin-bottom:8px">סעיפי שכר לחודש הנבחר</div>
-            <div class="sumbox" style="margin-bottom:10px">
-              <div class="sumrow"><label>נסיעות</label><input id="extra_travel" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>טיפים</label><input id="extra_tips" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>תוספת שכר</label><input id="extra_bonus" type="number" step="0.01" class="inp narrow" /></div>
-              <div class="sumrow"><label>החזר מקדמה</label><input id="extra_advance" type="number" step="0.01" class="inp narrow" /></div>
-              <button id="saveExtrasBtn" class="btn" style="margin-top:8px">שמירה</button>
-            </div>
-
-            <div class="pill" style="margin-bottom:8px">פירוט יומי משוקלל לחודש שנבחר</div>
-            <div class="tablewrap">
-              <table id="empCardDaily">
-                <thead>
-                  <tr>
-                    <th>תאריך</th>
-                    <th>סה"כ</th>
-                    <th>100%</th>
-                    <th>125%</th>
-                    <th>150%</th>
-                    <th>שבת 150%</th>
-                    <th>משוקלל</th>
-                    <th>שכר יום</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- TAB: משמרות -->
-          <div id="panel-punches" style="display:none">
-            <div class="pill" style="margin-bottom:8px">משמרות (כניסה/יציאה) לחודש שנבחר</div>
-            <div class="tablewrap">
-              <table id="empPunches">
-                <thead>
-                  <tr>
-                    <th>תאריך</th>
-                    <th>יום</th>
-                    <th>שעת כניסה</th>
-                    <th>שעת יציאה</th>
-                    <th>משך (שעות)</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
+  <div class="wrap">
+    <!-- שורת העליונה: טעינת קבצים ופקדים -->
+    <div class="card pad">
+      <div class="row">
+        <div class="col">
+          <label>טעינת קובץ שעות (Excel/CSV)</label>
+          <input id="file" type="file" accept=".xlsx,.xls,.csv" class="inp" />
         </div>
 
-        <!-- תיבת סיכום חודש נבחר -->
-        <div>
-          <div class="sumbox">
-            <div class="pill">סיכום חודש נבחר</div>
-            <div class="hr"></div>
-            <div class="sumrow"><span>שעות משוקללות</span><b id="empWgt">0</b></div>
-            <div class="sumrow"><span>שכר בסיס</span><b id="empBase">0</b></div>
-            <div class="sumrow"><span>סעיפי שכר</span><b id="empExtrasSum">0</b></div>
-            <div class="hr"></div>
-            <div class="sumrow"><span>שכר ברוטו</span><b id="empFinal">0</b></div>
-          </div>
+        <div class="col">
+          <label>בחירת עובד</label>
+          <select id="employeeFilter" class="inp" disabled>
+            <option value="ALL">כל העובדים</option>
+          </select>
+        </div>
+
+        <div class="col" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="exportDaily"   class="btn" disabled>ייצוא פירוט יומי (XLSX)</button>
+          <button id="exportSummary" class="btn alt" disabled>ייצוא סיכום חודשי (XLSX)</button>
+        </div>
+
+        <div class="col" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="exportJSON" class="btn">ייצוא JSON</button>
+          <button id="importJSON" class="btn alt" type="button">טעינת JSON</button>
+          <input id="importJSONFile" type="file" accept=".json" style="display:none" />
+          <button id="clearSession" class="btn warn" type="button">ניקוי סשן</button>
+        </div>
+
+        <div class="col" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="openCardBtn" class="btn" disabled>פתח כרטיס עובד</button>
         </div>
       </div>
 
-      <div class="foot small">
-        הסעיפים נשמרים לפי חודש לכל עובד. השינויים מתעדכנים מיידית בלחיצה על “שמירה”.
+      <div class="foot">חוקי חישוב: שבת <b>08:00–17:00</b> = 150% (אם משמרת מתחילה בשבת מ-<b>16:00</b> ומעלה – לא נספרות שעות שבת). נוספות יומיות: מצב A (9/11 → 100%/125%/150%) או מצב B (ללא נוספות).</div>
+    </div>
+
+    <!-- כרטיסיה: סיכום חודשי -->
+    <div class="card pad" style="margin-top:12px">
+      <div class="toolbar">
+        <span class="muted">סיכום חודשי לפי עובד</span>
+      </div>
+      <div class="tablewrap" style="margin-top:8px">
+        <table id="summaryTable">
+          <thead>
+            <tr>
+              <th>עובד</th>
+              <th>סה"כ שעות</th>
+              <th>רגיל 100%</th>
+              <th>נוספות 125%</th>
+              <th>נוספות 150%</th>
+              <th>שבת 150%</th>
+              <th>שעות משוקללות</th>
+              <th>שכר בסיס</th>
+              <th>נסיעות</th>
+              <th>טיפים</th>
+              <th>תוספת שכר</th>
+              <th>החזר מקדמה</th>
+              <th>שכר ברוטו</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr id="summaryTotalsRow">
+              <th>סה״כ</th>
+              <td colspan="12"></td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   </div>
-</div>
+
+  <!-- קובץ ה-JS שלך (v1.9.9) -->
+  <script src="app.js?v=1.9.9"></script>
 </body>
 </html>
