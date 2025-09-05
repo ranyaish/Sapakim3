@@ -1,4 +1,4 @@
-/* app.js – v1.9.9 */
+/* app.js – v1.9.8 */
 
 //////////////////////////// Utils ////////////////////////////
 const $ = sel => document.querySelector(sel);
@@ -51,44 +51,18 @@ function parseHebDateTime(v){
 
 //////////////////// Parsing workbook (CSV/XLSX) ////////////////////
 async function readWorkbook(file){
-  const ext = String(file.name || '').split('.').pop().toLowerCase();
-
-  // קורא את הקובץ (CSV כטקסט, אקסל כ־ArrayBuffer)
-  const reader = new FileReader();
-  const data = await new Promise((res, rej) => {
-    reader.onerror = () => rej(reader.error);
-    reader.onload  = () => res(reader.result);
-    if (ext === 'csv') reader.readAsText(file, 'utf-8');
-    else               reader.readAsArrayBuffer(file);
-  });
-
-  // --- CSV: פרסור אמין (מרכאות, פסיקים בשדות, ניחוש מפריד) ---
-  if (ext === 'csv') {
-    const text  = String(data).replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-    const lines = text.split('\n').filter(l => l.trim().length);
-
-    // ניחוש מפריד: פסיק/נקודה-פסיק/טאב
-    const guessDelim = (() => {
-      const sample = lines.slice(0, 20);
-      const count = d => sample
-        .map(s => (s.match(new RegExp(`\\${d}(?=(?:[^"]*"[^"]*")*[^"]*$)`,'g')) || []).length)
-        .reduce((a,b)=>a+b,0);
-      const opts = [{d:',',c:count(',')},{d:';',c:count(';')},{d:'\t',c:count('\t')}];
-      opts.sort((a,b)=>b.c-a.c);
-      return opts[0].c > 0 ? opts[0].d : ',';
-    })();
-
-    const splitSmart = row =>
-      row.split(new RegExp(`${guessDelim}(?=(?:[^"]*"[^"]*")*[^"]*$)`))
-         .map(c => c.replace(/^"(.*)"$/,'$1').replace(/""/g,'"'))
-         .map(c => c.replace(/\u00A0/g,' ').replace(/[\u200e\u200f]/g,'').trim());
-
-    return lines.map(splitSmart);
-  }
-
-  // --- XLSX/XLS: שימוש ב-SheetJS כפי שהיה ---
   if (!window.XLSX) { alert('XLSX לא נטען'); throw new Error('XLSX missing'); }
-  const wb = XLSX.read(data, { type:'array', raw:true, cellDates:true });
+  const ext = file.name.toLowerCase().split('.').pop();
+
+  const reader = new FileReader();
+  const load = new Promise(res=> reader.onload = () => res(reader.result));
+  if(ext==='csv') reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+  const data = await load;
+
+  const wb = (ext==='csv')
+    ? XLSX.read(data, { type:'string', raw:true })
+    : XLSX.read(data, { type:'array',  raw:true, cellDates:true });
 
   const allRows = [];
   for (const name of wb.SheetNames) {
@@ -96,12 +70,11 @@ async function readWorkbook(file){
     const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
     for (const row of rows) {
       allRows.push((row || []).map(x => {
-        if (typeof x === 'string')
-          return x.replace(/\u00A0/g,' ').replace(/[\u200e\u200f]/g,'').trim();
+        if (typeof x === 'string') return x.replace(/\u00A0/g,' ').replace(/\u200f|\u200e/g,'').trim();
         return x;
       }));
     }
-    allRows.push([]); // רווח בין גליונות
+    allRows.push([]); // מפריד בין גליונות
   }
   log(`[payroll] rows loaded: ${allRows.length} [payroll]`);
   return allRows;
@@ -812,10 +785,6 @@ function openCardFromSelect(){
 
 window.addEventListener('DOMContentLoaded', ()=>{
   $('#file')?.addEventListener('change', handleFile);
-
-  // לאפשר בחירת CSV/Excel בחלון הקבצים
-  const fileInput = $('#file');
-  if (fileInput) fileInput.setAttribute('accept', '.xlsx,.xls,.csv');
 
   $('#exportDaily')?.addEventListener('click', exportDaily);
   $('#exportSummary')?.addEventListener('click', exportSummary);
