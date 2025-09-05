@@ -299,7 +299,7 @@ function renderEmployeeSelect(){
   $('#exportSummary').disabled = !hasData;
 }
 
-//////////////////// XLSX helpers (RTL + Bold header + zebra) ////////////////////
+//////////////////// XLSX helpers (RTL + Bold header + zebra + SUM for "שכר ברוטו") ////////////////////
 async function exportXlsx(filename, headersHeb, rowsArray) {
   const X = window.XlsxPopulate;
   if (!X) { alert('XlsxPopulate לא נטען'); return; }
@@ -314,14 +314,17 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
     }
   } catch(_) {}
 
+  // Header
   sheet.cell(1, 1).value([headersHeb]);
   sheet.row(1).style({ bold: true });
 
+  // Data
   if (rowsArray.length) {
     const dataMatrix = rowsArray.map(row => headersHeb.map(h => row[h]));
     sheet.cell(2, 1).value(dataMatrix);
   }
 
+  // Align right + auto width
   const used = sheet.usedRange();
   if (used) used.style({ horizontalAlignment: "right" });
 
@@ -334,13 +337,31 @@ async function exportXlsx(filename, headersHeb, rowsArray) {
     sheet.column(idx + 1).width(Math.min(Math.max(10, maxLen + 2), 40));
   });
 
-  const lastRow = rowsArray.length + 1;
+  // Zebra
+  const lastDataRow = rowsArray.length + 1; // כולל כותרת בשורה 1
   const LIGHT = "EAF5FF";
   const DARK  = "D6ECFF";
-  for (let r = 2; r <= lastRow; r++) {
+  for (let r = 2; r <= lastDataRow; r++) {
     sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
   }
 
+  // ---- NEW: מספר ו-SUM לעמודת "שכר ברוטו" ----
+  const grossIdx = headersHeb.indexOf('שכר ברוטו'); // 0-based
+  if (grossIdx !== -1 && rowsArray.length){
+    const col = grossIdx + 1; // 1-based
+    // פורמט מספר שלם לעמודה
+    sheet.range(2, col, lastDataRow, col).style({ numberFormat: '0' });
+
+    // שורת SUM
+    const sumRow = lastDataRow + 1;
+    const startAddr = sheet.cell(2, col).address();
+    const endAddr   = sheet.cell(lastDataRow, col).address();
+    sheet.cell(sumRow, 1).value('סכום שכר ברוטו'); // תווית
+    sheet.cell(sumRow, col).formula(`SUM(${startAddr}:${endAddr})`).style({ bold: true, numberFormat: '0' });
+  }
+  // ---- END NEW ----
+
+  // Download
   const blob = await wb.outputAsync();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -383,11 +404,8 @@ function exportDaily(){
       tips: fmt2(tips),
       bonus: fmt2(bonus),
       advance: fmt2(advance),
-      // כאן השארנו את שכר ברוטו כמספר אמיתי (לא fmt2) כדי שתוכל SUM באקסל,
-      // אבל נציג אותו בשני מקומות:
-      // 1) בשדה הנתון ל-XLSX נכניס מספר (לא מחרוזת)
-      // 2) בשורת ההדפסה (rowsForXlsx) נדאג שהוא לא יומר למחרוזת
-      final_pay: (pay + extrasSum)
+      // NEW: "שכר ברוטו" כמספר שלם
+      final_pay: Math.round(pay + extrasSum)
     };
   });
 
@@ -413,7 +431,8 @@ function exportDaily(){
     'טיפים': r.tips,
     'תוספת שכר': r.bonus,
     'החזר מקדמה': r.advance,
-    'שכר ברוטו': +r.final_pay // מספר, לא מחרוזת
+    // NEW: שומר מספר ולא מחרוזת
+    'שכר ברוטו': +r.final_pay
   }));
 
   exportXlsx(selEmp==='ALL' ? 'per_day.xlsx' : `per_day_${selEmp}.xlsx`, headersHeb, rowsForXlsx);
@@ -458,7 +477,8 @@ function exportSummary(){
     tips:fmt2(r.tips||0),
     bonus:fmt2(r.bonus||0),
     advance:fmt2(r.advance||0),
-    final_pay:+(r.finalPay||0) // מספר ל-SUM
+    // NEW: מספר שלם
+    final_pay: Math.round(+r.finalPay||0)
   }));
 
   const headersHeb = [
@@ -479,7 +499,8 @@ function exportSummary(){
     'טיפים': r.tips,
     'תוספת שכר': r.bonus,
     'החזר מקדמה': r.advance,
-    'שכר ברוטו': +r.final_pay // מספר, לא מחרוזת
+    // NEW: מספר שלם
+    'שכר ברוטו': +r.final_pay
   }));
 
   exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
