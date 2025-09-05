@@ -373,19 +373,21 @@ function exportDaily(){
     const finalPay = pay + extrasSum;
 
     return {
-      total: +r.total,
-reg_100: +r.reg,
-ot_125: +r.ot125,
-ot_150: +r.ot150,
-shabbat_150: +r.shabbat150,
-weighted_hours: +r.weighted,
-hourly_rate: +rate,
-pay: +pay,
-travel: +travel,
-tips: +tips,
-bonus: +bonus,
-advance: +advance,
-final_pay: +finalPay
+      employee: emp,
+      date: r.date,
+      total: fmt2(r.total),
+      reg_100: fmt2(r.reg),
+      ot_125: fmt2(r.ot125),
+      ot_150: fmt2(r.ot150),
+      shabbat_150: fmt2(r.shabbat150),
+      weighted_hours: fmt2(r.weighted),
+      hourly_rate: rate,
+      pay: fmt2(pay),
+      travel: fmt2(travel),
+      tips: fmt2(tips),
+      bonus: fmt2(bonus),
+      advance: fmt2(advance),
+      final_pay: fmt2(finalPay)
     };
   });
 
@@ -482,32 +484,6 @@ function exportSummary(){
 
   exportXlsx('summary.xlsx', headersHeb, rowsForXlsx);
 }
-
-// בסוף exportXlsx, לפני ההורדה:
-const lastRow = rowsArray.length + 1;
-const LIGHT = "EAF5FF";
-const DARK  = "D6ECFF";
-for (let r = 2; r <= lastRow; r++) {
-  sheet.row(r).style({ fill: (r % 2 === 0) ? LIGHT : DARK });
-}
-
-// ===== עיצוב עמודות מספרים =====
-headersHeb.forEach((h, idx) => {
-  const col = sheet.column(idx + 1);
-  if (idx > 0) { // חוץ מהעמודה הראשונה (עובד)
-    col.style({ numberFormat: "0.00" });
-  }
-
-// ===== שורת SUM בעמודה האחרונה =====
-const totalRow = lastRow + 1;
-sheet.cell(totalRow, 1).value("סה\"כ").style({ bold: true });
-for (let c = 2; c <= headersHeb.length; c++) {
-  const colLetter = String.fromCharCode(64 + c); // A=65
-  const formula = `SUM(${colLetter}2:${colLetter}${lastRow})`;
-  sheet.cell(totalRow, c).formula(formula).style({ bold: true });
-}
-
-  });
 
 //////////////////// Monthly summary card (homepage) ////////////////////
 function computeSummaryRows() {
