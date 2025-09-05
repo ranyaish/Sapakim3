@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>אפליקציית חישוב משכורות</title>
+
+  <!-- גופן (לא חובה) -->
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    body{font-family:Heebo,system-ui,Arial,sans-serif;margin:0;background:#f7fbff;color:#112}
+    header{position:sticky;top:0;background:#fff;border-bottom:1px solid #e6eef7;padding:12px 14px;z-index:5}
+    h1{margin:0;font-size:18px}
+    .wrap{max-width:1100px;margin:14px auto;padding:0 12px}
+    .card{background:#fff;border:1px solid #e6eef7;border-radius:14px;padding:12px;margin-bottom:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .inp{background:#fff;border:1px solid #cfd9ee;border-radius:10px;padding:8px 10px;min-height:38px}
+    .btn{background:#7DB9FF;color:#0b1b2b;border:0;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #e6eef7;padding:8px 10px;font-size:14px;text-align:right}
+    thead th{background:#f2f7ff;position:sticky;top:58px;z-index:2}
+    .hscroll{overflow:auto}
+    #summaryTable{min-width:1100px}
+    tfoot th, tfoot td{font-weight:800;background:#fafcff;position:sticky;bottom:0}
+    /* מודאל */
+    .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.35);z-index:1000}
+    .modal.show{display:flex}
+    .dialog{margin-top:24px;background:#fff;border:1px solid #e6eef7;border-radius:14px;max-height:90vh;overflow:auto;min-width:min(960px,95vw)}
+    .dialog header{position:sticky;top:0;background:#fff;border-bottom:1px solid #e6eef7;padding:10px 12px;border-radius:14px 14px 0 0;display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .tabs{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+    .tab{padding:6px 10px;border:1px solid #dfe8f7;border-radius:10px;background:#fff;cursor:pointer}
+    .tab.active{outline:2px solid #7DB9FF}
+    .content{padding:12px}
+    @media (max-width:720px){ thead th{top:52px} .dialog{min-width:0;width:calc(100vw - 16px);} }
+  </style>
+</head>
+<body>
+<header><h1>אפליקציית חישוב משכורות</h1></header>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>טעינת קובץ Excel/CSV</label><br>
+        <!-- חשוב: אותו ID שה-JS מצפה לו + accept -->
+        <input id="file" type="file" class="inp" accept=".xlsx,.xls,.csv" />
+      </div>
+      <div>
+        <label>בחירת עובד</label><br>
+        <select id="employeeFilter" class="inp" disabled></select>
+      </div>
+      <div class="row" style="gap:8px">
+        <button id="exportDaily"   class="btn" disabled>ייצוא פירוט יומי (XLSX)</button>
+        <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (XLSX)</button>
+        <button id="exportJSON"    class="btn" disabled>ייצוא JSON</button>
+        <button id="importJSON"    class="btn">טעינת JSON</button>
+        <input  id="importJSONFile" type="file" accept="application/json" style="display:none" />
+        <button id="clearSession"  class="btn">ניקוי סשן</button>
+        <button id="openCardBtn"   class="btn" disabled>כרטיס עובד</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">סיכום חודשי</h3>
+    <div class="hscroll">
+      <table id="summaryTable">
+        <thead>
+          <tr>
+            <th>עובד</th>
+            <th>סה"כ שעות</th>
+            <th>רגיל 100%</th>
+            <th>נוספות 125%</th>
+            <th>נוספות 150%</th>
+            <th>שבת 150%</th>
+            <th>שעות משוקללות</th>
+            <th>שכר בסיס</th>
+            <th>נסיעות</th>
+            <th>טיפים</th>
+            <th>תוספת שכר</th>
+            <th>החזר מקדמה</th>
+            <th>שכר ברוטו</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot><tr id="summaryTotalsRow"><th>סה"כ</th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- מודאל כרטיס עובד -->
+<div id="empModal" class="modal" aria-hidden="true">
+  <div class="dialog">
+    <header>
+      <div style="display:flex;gap:8px;align-items:center">
+        <strong id="empModalTitle">כרטיס עובד</strong>
+      </div>
+      <div style="display:flex;gap:8px">
+        <select id="empMonthSel" class="inp"></select>
+        <button class="btn" onclick="closeEmpModal()">סגור</button>
+      </div>
+    </header>
+    <div class="content">
+      <div class="tabs">
+        <button id="tab-config"  class="tab active">פרטי שכר</button>
+        <button id="tab-daily"   class="tab">פירוט יומי</button>
+        <button id="tab-punches" class="tab">משמרות</button>
+      </div>
+
+      <!-- טאב פרטי שכר -->
+      <section id="panel-config">
+        <div class="row">
+          <div><label>מצב חישוב</label><br>
+            <select id="empMode" class="inp">
+              <option value="A">A – 9/11 נוספות</option>
+              <option value="B">B – ללא נוספות</option>
+            </select>
+          </div>
+          <div><label>שכר לשעה</label><br>
+            <input id="empRate" type="number" step="0.01" class="inp" placeholder="0" />
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div><label>סעיפים לחודש נבחר</label></div>
+          <div class="row">
+            <div><input id="extra_travel"  class="inp" type="number" step="0.01" placeholder="נסיעות"></div>
+            <div><input id="extra_tips"    class="inp" type="number" step="0.01" placeholder="טיפים"></div>
+            <div><input id="extra_bonus"   class="inp" type="number" step="0.01" placeholder="תוספת שכר"></div>
+            <div><input id="extra_advance" class="inp" type="number" step="0.01" placeholder="החזר מקדמה"></div>
+            <div><button id="saveExtrasBtn" class="btn">שמירה</button></div>
+          </div>
+          <div style="margin-top:10px">
+            <b>שעות משוקללות:</b> <span id="empWgt">0</span> |
+            <b>שכר בסיס:</b> <span id="empBase">0</span> |
+            <b>סעיפים:</b> <span id="empExtrasSum">0</span> |
+            <b>שכר ברוטו:</b> <span id="empFinal">0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- טאב פירוט יומי -->
+      <section id="panel-daily" style="display:none">
+        <div class="hscroll">
+          <table id="empCardDaily">
+            <thead>
+              <tr>
+                <th>תאריך</th><th>סה"כ</th><th>100%</th><th>125%</th><th>150%</th><th>שבת 150%</th><th>משוקלל</th><th>שכר יום</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- טאב משמרות -->
+      <section id="panel-punches" style="display:none">
+        <div class="hscroll">
+          <table id="empPunches">
+            <thead>
+              <tr>
+                <th>תאריך</th><th>יום</th><th>כניסה</th><th>יציאה</th><th>סה"כ</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ספריות חובה -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js" defer></script>
+
+<!-- הסקריפט שלך (עם anti-cache) -->
+<script src="app.js?v=1.9.9" defer></script>
+</body>
+</html>
