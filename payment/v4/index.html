@@ -2,259 +2,200 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>אפליקציית חישוב משכורות</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- עיצוב בסיסי זהה לגרסאות שעבדו -->
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
-    :root{
-      --bg:#f5f7fb; --card:#ffffff; --ink:#0b1c33; --muted:#6a7a95; --line:#e1e6ef;
-      --acc:#4f8cff; --ok:#12d27c; --warn:#ffb020;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,Arial,sans-serif}
-    header{padding:16px 18px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:40}
+    body{font-family:Heebo,system-ui,Arial,sans-serif;margin:0;background:#f7fbff;color:#112}
+    header{position:sticky;top:0;background:#fff;border-bottom:1px solid #e6eef7;padding:12px 14px;z-index:5}
     h1{margin:0;font-size:18px}
-    .wrap{max-width:1200px;margin:18px auto;padding:0 14px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
-    .pad{padding:14px}
-    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
-    .inp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--ink)}
-    .btn{background:var(--acc);color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .wrap{max-width:1100px;margin:14px auto;padding:0 12px}
+    .card{background:#fff;border:1px solid #e6eef7;border-radius:14px;padding:12px;margin-bottom:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .inp{background:#fff;border:1px solid #cfd9ee;border-radius:10px;padding:8px 10px;min-height:38px}
+    .btn{background:#7DB9FF;color:#0b1b2b;border:0;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.6;cursor:not-allowed}
-    label{font-size:14px;color:var(--muted)}
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .foot{margin-top:8px;font-size:12px;color:var(--muted)}
-
-    /* טבלאות – צמצום רווחים */
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #e6eef7;padding:8px 10px;font-size:14px;text-align:right}
+    thead th{background:#f2f7ff;position:sticky;top:58px;z-index:2}
     .hscroll{overflow:auto}
-    table{width:100%;border-collapse:collapse;min-width:760px}
-    th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;font-size:13px;white-space:nowrap}
-    thead th{position:sticky;top:64px;background:#f7faff;font-weight:800;z-index:2}
-    tfoot td, tfoot th{font-weight:800;background:#fbfdff}
+    #summaryTable{min-width:1100px}
+    tfoot th, tfoot td{font-weight:800;background:#fafcff;position:sticky;bottom:0}
 
-    /* מודל כרטיס עובד */
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:10px}
+    /* מודאל (כרטיס עובד) */
+    .modal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.35);z-index:1000}
     .modal.show{display:flex}
-    .modal-dialog{max-width:1000px;width:100%}
-    .modal-content{background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 12px 48px rgba(0,0,0,.15);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
-    .modal-header{
-      padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;
-      position:sticky;top:0;background:#fff;z-index:5; /* דביק */
-    }
-    .modal-title{margin:0;font-size:16px;font-weight:800;flex:1;text-align:center}
-    .modal-body{padding:10px;overflow:auto;-webkit-overflow-scrolling:touch}
-
-    .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-    .tab{padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#244;cursor:pointer;font-size:13px}
-    .tab.active{background:#f0f5ff;border-color:#d6e4ff;font-weight:800}
-    .panel{display:none}
-    .panel.show{display:block}
-    .section{border:1px dashed var(--line);border-radius:12px;padding:10px;margin-bottom:10px;background:#fff}
-    .muted{color:var(--muted)}
-
-    /* ניווט בין עובדים */
-    .emp-nav{ display:inline-flex; gap:6px; margin-inline-start:8px; }
-    .btn-mini{
-      display:inline-flex; align-items:center; justify-content:center;
-      min-width:30px; height:30px; padding:0 8px;
-      border:1px solid #cfe0ff; border-radius:8px; background:#f3f7ff; color:#244;
-      font-weight:700; cursor:pointer;
-    }
-    .btn-mini:active{ transform:translateY(1px); }
-
-    @media (max-width:700px){
-      thead th{top:56px}
-      .row > *{flex:1 1 200px}
-      .modal-dialog{max-width:95vw}
-    }
+    .dialog{margin-top:24px;background:#fff;border:1px solid #e6eef7;border-radius:14px;max-height:90vh;overflow:auto;min-width:min(960px,95vw)}
+    .dialog header{position:sticky;top:0;background:#fff;border-bottom:1px solid #e6eef7;padding:10px 12px;border-radius:14px 14px 0 0;display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .tabs{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+    .tab{padding:6px 10px;border:1px solid #dfe8f7;border-radius:10px;background:#fff;cursor:pointer}
+    .tab.active{outline:2px solid #7DB9FF}
+    .content{padding:12px}
+    @media (max-width:720px){ thead th{top:52px} .dialog{min-width:0;width:calc(100vw - 16px);} }
   </style>
+
+  <!-- PWA (מסך מלא) – לא חובה, לא שוברים אם חסר הקובץ -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#7DB9FF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="חישוב משכורות">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
 <header><h1>אפליקציית חישוב משכורות</h1></header>
 
 <div class="wrap">
-  <div class="card pad">
+
+  <div class="card">
     <div class="row">
       <div>
-        <label>קובץ Excel/CSV במבנה הקבוע</label><br>
-        <input id="file" type="file" accept=".xlsx,.xls,.csv" class="inp" />
-      </div>
-      <div>
-        <label>טעינת סשן JSON</label><br>
-        <input id="importJSONFile" type="file" accept=".json" class="inp" style="display:none" />
-        <button id="importJSON" class="btn">בחר קובץ</button>
+        <label>טעינת קובץ Excel/CSV</label><br>
+        <input id="file" type="file" class="inp" accept=".xlsx,.xls,.csv" />
       </div>
       <div>
         <label>בחירת עובד</label><br>
         <select id="employeeFilter" class="inp" disabled></select>
       </div>
-      <div class="toolbar">
-        <button id="openCardBtn" class="btn">פתח כרטיס עובד</button>
-        <button id="exportDaily" class="btn" disabled>(XLSX) ייצוא יומי</button>
-        <button id="exportSummary" class="btn" disabled>(XLSX) ייצוא חודשי</button>
-        <button id="exportJSON" class="btn" disabled>ייצוא JSON</button>
-        <button id="clearSession" class="btn" style="background:#ff6b6b">נקה סשן</button>
+      <div class="row" style="gap:8px">
+        <button id="exportDaily"   class="btn" disabled>ייצוא פירוט יומי (XLSX)</button>
+        <button id="exportSummary" class="btn" disabled>ייצוא סיכום חודשי (XLSX)</button>
+        <button id="exportJSON"    class="btn" disabled>ייצוא JSON</button>
+        <button id="importJSON"    class="btn">טעינת JSON</button>
+        <input  id="importJSONFile" type="file" accept="application/json" style="display:none" />
+        <button id="clearSession"  class="btn">ניקוי סשן</button>
+        <button id="openCardBtn"   class="btn" disabled>כרטיס עובד</button>
       </div>
     </div>
-    <div class="foot">שבת <b>08:00–17:00</b> = 150% (אם משמרת מתחילה בשבת מ-16:00 ומעלה – לא נספרות שעות שבת). מצב A: 9/11 → 100%/125%/150%; מצב B: ללא נוספות.</div>
   </div>
 
-  <div class="card pad" style="margin-top:14px">
-    <div class="toolbar"><span style="font-weight:800">סיכום חודשי</span><span class="muted">ניתן לגלול אופקית</span></div>
+  <div class="card">
+    <h3 style="margin:0 0 8px">סיכום חודשי</h3>
     <div class="hscroll">
       <table id="summaryTable">
         <thead>
           <tr>
-            <th>עובד</th><th>סה"כ שעות</th><th>רגיל 100%</th><th>נוספות 125%</th><th>נוספות 150%</th><th>שבת 150%</th><th>שעות משוקללות</th><th>שכר בסיס</th><th>נסיעות</th><th>טיפים</th><th>תוספת שכר</th><th>החזר מקדמה</th><th>שכר ברוטו</th>
+            <th>עובד</th>
+            <th>סה"כ שעות</th>
+            <th>רגיל 100%</th>
+            <th>נוספות 125%</th>
+            <th>נוספות 150%</th>
+            <th>שבת 150%</th>
+            <th>שעות משוקללות</th>
+            <th>שכר בסיס</th>
+            <th>נסיעות</th>
+            <th>טיפים</th>
+            <th>תוספת שכר</th>
+            <th>החזר מקדמה</th>
+            <th>שכר ברוטו</th>
           </tr>
         </thead>
         <tbody></tbody>
-        <tfoot>
-          <tr id="summaryTotalsRow"><th>סה״כ</th><td colspan="12">—</td></tr>
-        </tfoot>
+        <tfoot><tr id="summaryTotalsRow"><th>סה"כ</th></tr></tfoot>
       </table>
     </div>
   </div>
+
 </div>
 
-<!-- מודל כרטיס עובד -->
+<!-- מודאל כרטיס עובד -->
 <div id="empModal" class="modal" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <button id="empCloseBtn" class="btn" style="background:#ff6b6b" onclick="closeEmpModal()">סגור</button>
-        <h3 id="empModalTitle" class="modal-title">כרטיס עובד</h3>
-        <div class="emp-nav">
-          <button class="btn-mini" id="empPrevBtn" title="הקודם">‹</button>
-          <button class="btn-mini" id="empNextBtn" title="הבא">›</button>
-        </div>
+  <div class="dialog">
+    <header>
+      <div style="display:flex;gap:8px;align-items:center">
+        <strong id="empModalTitle">כרטיס עובד</strong>
+      </div>
+      <div style="display:flex;gap:8px">
+        <select id="empMonthSel" class="inp"></select>
+        <button class="btn" onclick="closeEmpModal()">סגור</button>
+      </div>
+    </header>
+    <div class="content">
+      <div class="tabs">
+        <button id="tab-config"  class="tab active">פרטי שכר</button>
+        <button id="tab-daily"   class="tab">פירוט יומי</button>
+        <button id="tab-punches" class="tab">משמרות</button>
       </div>
 
-      <div class="modal-body">
-        <div class="tabs">
-          <button id="tab-config"  class="tab active">פרטי שכר</button>
-          <button id="tab-daily"   class="tab">פירוט יומי + סעיפים</button>
-          <button id="tab-punches" class="tab">משמרות (כניסה/יציאה)</button>
-        </div>
-
-        <!-- פרטי שכר -->
-        <div id="panel-config" class="panel show">
-          <div class="section">
-            <div class="row">
-              <div style="min-width:220px">
-                <label>מצב חישוב</label><br>
-                <select id="empMode" class="inp">
-                  <option value="A">מצב A – נוספות יומיות (9/11)</option>
-                  <option value="B">מצב B – ללא נוספות</option>
-                </select>
-              </div>
-              <div style="min-width:180px">
-                <label>שכר לשעה (₪)</label><br>
-                <input id="empRate" type="number" min="0" step="0.01" class="inp" />
-              </div>
-            </div>
+      <!-- טאב פרטי שכר -->
+      <section id="panel-config">
+        <div class="row">
+          <div><label>מצב חישוב</label><br>
+            <select id="empMode" class="inp">
+              <option value="A">A – 9/11 נוספות</option>
+              <option value="B">B – ללא נוספות</option>
+            </select>
           </div>
-
-          <div class="section">
-            <div class="row">
-              <div>
-                <label>חודש (YYYY-MM)</label><br>
-                <select id="empMonthSel" class="inp" style="min-width:160px"></select>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="row">
-              <div style="min-width:160px">
-                <label>שעות משוקללות</label><div id="empWgt" style="font-weight:800">0.00</div>
-              </div>
-              <div style="min-width:160px">
-                <label>שכר בסיס</label><div id="empBase" style="font-weight:800">0.00</div>
-              </div>
-              <div style="min-width:160px">
-                <label>סעיפי שכר</label><div id="empExtrasSum" style="font-weight:800">0.00</div>
-              </div>
-              <div style="min-width:160px">
-                <label>שכר ברוטו</label><div id="empFinal" style="font-weight:800">0.00</div>
-              </div>
-            </div>
+          <div><label>שכר לשעה</label><br>
+            <input id="empRate" type="number" step="0.01" class="inp" placeholder="0" />
           </div>
         </div>
-
-        <!-- פירוט יומי + סעיפים -->
-        <div id="panel-daily" class="panel">
-          <div class="section">
-            <div class="row">
-              <div>
-                <label>חודש (YYYY-MM)</label><br>
-                <select id="empMonthSel2" class="inp" style="min-width:160px"></select>
-              </div>
-            </div>
+        <div style="margin-top:12px">
+          <div><label>סעיפים לחודש נבחר</label></div>
+          <div class="row">
+            <div><input id="extra_travel"  class="inp" type="number" step="0.01" placeholder="נסיעות"></div>
+            <div><input id="extra_tips"    class="inp" type="number" step="0.01" placeholder="טיפים"></div>
+            <div><input id="extra_bonus"   class="inp" type="number" step="0.01" placeholder="תוספת שכר"></div>
+            <div><input id="extra_advance" class="inp" type="number" step="0.01" placeholder="החזר מקדמה"></div>
+            <div><button id="saveExtrasBtn" class="btn">שמירה</button></div>
           </div>
-
-          <div class="section">
-            <label style="font-weight:800">סעיפים חודשיים (נשמרים בסשן)</label>
-            <div class="row">
-              <div><label>נסיעות (₪)</label><br><input id="extra_travel"  type="number" step="0.01" class="inp" value="0"></div>
-              <div><label>טיפים (₪)</label><br>   <input id="extra_tips"    type="number" step="0.01" class="inp" value="0"></div>
-              <div><label>תוספת שכר (₪)</label><br><input id="extra_bonus"   type="number" step="0.01" class="inp" value="0"></div>
-              <div><label>החזר מקדמה (₪-)</label><br><input id="extra_advance" type="number" step="0.01" class="inp" value="0"></div>
-              <div style="align-self:flex-end"><button id="saveExtrasBtn" class="btn">שמירה</button></div>
-            </div>
-          </div>
-
-          <div class="section hscroll">
-            <table id="empCardDaily">
-              <thead>
-                <tr>
-                  <th>תאריך</th><th>סה"כ</th><th>100%</th><th>125%</th><th>150%</th><th>שבת 150%</th><th>משוקלל</th><th>שכר יום</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-
-          <div class="section">
-            <div class="row">
-              <div style="min-width:160px">
-                <label>שעות משוקללות</label><div id="empWgt_d" style="font-weight:800">0.00</div>
-              </div>
-              <div style="min-width:160px">
-                <label>שכר בסיס</label><div id="empBase_d" style="font-weight:800">0.00</div>
-              </div>
-              <div style="min-width:160px">
-                <label>סעיפי שכר</label><div id="empExtrasSum_d" style="font-weight:800">0.00</div>
-              </div>
-              <div style="min-width:160px">
-                <label>שכר ברוטו</label><div id="empFinal_d" style="font-weight:800">0.00</div>
-              </div>
-            </div>
+          <div style="margin-top:10px">
+            <b>שעות משוקללות:</b> <span id="empWgt">0</span> |
+            <b>שכר בסיס:</b> <span id="empBase">0</span> |
+            <b>סעיפים:</b> <span id="empExtrasSum">0</span> |
+            <b>שכר ברוטו:</b> <span id="empFinal">0</span>
           </div>
         </div>
+      </section>
 
-        <!-- רשימת משמרות -->
-        <div id="panel-punches" class="panel">
-          <div class="section hscroll">
-            <table id="empPunches">
-              <thead>
-                <tr><th>תאריך</th><th>יום</th><th>כניסה</th><th>יציאה</th><th>סה"כ</th></tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
+      <!-- טאב פירוט יומי -->
+      <section id="panel-daily" style="display:none">
+        <div class="hscroll">
+          <table id="empCardDaily">
+            <thead>
+              <tr>
+                <th>תאריך</th><th>סה"כ</th><th>100%</th><th>125%</th><th>150%</th><th>שבת 150%</th><th>משוקלל</th><th>שכר יום</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
+      </section>
 
-      </div>
+      <!-- טאב משמרות -->
+      <section id="panel-punches" style="display:none">
+        <div class="hscroll">
+          <table id="empPunches">
+            <thead>
+              <tr>
+                <th>תאריך</th><th>יום</th><th>כניסה</th><th>יציאה</th><th>סה"כ</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
     </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js"></script>
-<script src="app.js"></script>
-<script>console.log('payroll modal-tune v1.1');</script>
+<!-- ספריות -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-populate/browser/xlsx-populate.min.js" defer></script>
+
+<!-- הסקריפט שלך (עם anti-cache) -->
+<script src="app.js?v=1.9.9" defer></script>
+
+<!-- רישום Service Worker למסך-מלא (לא חובה) -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    });
+  }
+</script>
 </body>
 </html>
