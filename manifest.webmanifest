@@ -1,17 +1,10 @@
 {
-  "id": "/?source=pwa",
   "name": "ניהול ספקים",
   "short_name": "ספקים",
-  "description": "אפליקציה לניהול ספקים, חשבוניות ותשלומים.",
-  "dir": "rtl",
-  "lang": "he",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": ".",
   "display": "standalone",
-  "orientation": "portrait",
+  "background_color": "#ffffff",
   "theme_color": "#111827",
-  "background_color": "#f6f8fb",
-  "categories": ["business", "productivity", "finance"],
   "icons": [
     {
       "src": "icons/icon-192.png",
