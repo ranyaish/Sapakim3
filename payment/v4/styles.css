@@ -1,24 +1,23 @@
 :root{
   --bg1:#E9FFF7;
   --bg2:#D7FFF4;
-
-  --card:#FFF9F0;
-  --card-br:#EFE4D6;
+  --card:#FFFFFF;
+  --card-br:#E6EDF6;
 
   --ink:#0b1b2b;
   --muted:#4b5d77;
 
   /* כפתורים פסטל */
-  --acc:#7DB9FF;   /* כחול פסטלי */
-  --acc-2:#9CC7FF; /* חלופי פסטלי */
-  --warn:#FF9AA2;  /* ורוד-אדום פסטלי */
+  --acc:#7DB9FF;
+  --acc-2:#9CC7FF;
+  --warn:#FF9AA2;
 
-  --line:#e8e0d0;
+  --line:#dfe6f2;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
-html,body{overflow-x:hidden}
+*{ box-sizing: border-box }
+html,body{ height:100% }
+html,body{ overflow-x:hidden }
 body{
   margin:0;
   background:linear-gradient(180deg,var(--bg1),var(--bg2));
@@ -28,257 +27,146 @@ body{
 header{
   padding:14px 16px;
   border-bottom:1px solid rgba(0,0,0,.06);
-  background:rgba(255,255,255,.45);
+  background:rgba(255,255,255,.55);
   -webkit-backdrop-filter:saturate(115%) blur(6px);
   backdrop-filter:saturate(115%) blur(6px);
   position:sticky;top:0;z-index:5
 }
-h1{margin:0;font-size:20px;color:#134}
-.wrap{max-width:1100px;margin:14px auto;padding:0 12px}
+h1{ margin:0;font-size:20px;color:#134 }
+.wrap{ max-width:1100px; margin:14px auto; padding:0 12px }
 
-.card {
-  background: var(--card);
-  border: 1px solid #1e2a52;
-  border-radius: 16px;
-  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+.card{
+  background:var(--card);
+  border:1px solid var(--card-br);
+  border-radius:16px;
+  box-shadow:0 6px 20px rgba(0,0,0,.08)
 }
-.pad{padding:12px}
+.pad{ padding:12px }
 
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-.col{flex:1 1 260px;min-width:0}
-.btns{display:flex;gap:8px;flex-wrap:wrap}
+.row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end }
+.col{ flex:1 1 260px; min-width:0 }
+.btns{ display:flex; gap:8px; flex-wrap:wrap }
 
-/* שדות לבנים */
 .inp{
   width:100%;
-  background:#ffffff;border:1px solid #d6dbe8;border-radius:12px;
-  padding:10px 12px;color:var(--ink);min-height:40px
+  background:#ffffff; border:1px solid #d6dbe8; border-radius:12px;
+  padding:10px 12px; color:var(--ink); min-height:40px
 }
-/* כפתורים פסטליים */
 .btn{
-  background:var(--acc);color:#0b1b2b;border:0;border-radius:12px;
-  padding:10px 14px;font-weight:800;cursor:pointer;min-height:40px
+  background:var(--acc); color:#0b1b2b; border:0; border-radius:12px;
+  padding:10px 14px; font-weight:800; cursor:pointer; min-height:40px
 }
-.btn.alt{background:var(--acc-2);color:#0b1b2b}
-.btn.warn{background:var(--warn);color:#0b1b2b}
-.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn.alt{ background:var(--acc-2) }
+.btn.warn{ background:var(--warn) }
+.btn.small{ padding:6px 10px; min-height:auto; font-weight:700 }
 
-label{font-size:14px;color:#334b68}
-.pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;background:#eef3ff;border:1px solid #d7e2ff;color:#345}
-.muted{color:#5d6e8b}
-.small{font-size:12px;color:#6b7a8f}
-.foot{margin-top:8px;font-size:12px;color:#4a6278}
+.btn:disabled{ opacity:.6; cursor:not-allowed }
 
-/* בתוך המודאל אוסר sticky של head בטבלאות */
-.dialog thead th{position:static;top:auto}
+label{ font-size:14px; color:#334b68 }
+.pill{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; background:#eef3ff; border:1px solid #d7e2ff; color:#345 }
+.muted{ color:#5d6e8b }
+.small{ font-size:12px; color:#6b7a8f }
+.foot{ margin-top:8px; font-size:12px; color:#4a6278 }
 
-/* מודאל */
-.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1000}
-.modal.show{display:flex}
-.backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35)}
-.dialog{
-  position:relative;width:min(980px,96vw);max-height:92vh;overflow:auto;
-  background:#fff;border:1px solid #e5e1d7;border-radius:16px;box-shadow:0 18px 70px rgba(0,0,0,.25)
-}
-/* הכותרת “נדבקת” ומעל הכל כדי שתמיד יראו את כפתור סגור */
-.dialog header{
-  position:sticky;top:0;z-index:10;
-  background:#fff;border-bottom:1px solid #ece8de;padding:10px 14px;
-  border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center
-}
-.dialog h2{margin:0;font-size:18px;color:#0b1b2b}
-.dialog .content{padding:12px}
-.grid2{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px}
-.sumbox{background:#fff;border:1px solid #ece8de;border-radius:12px;padding:10px}
-.sumrow{display:flex;justify-content:space-between;margin:6px 0;gap:10px;align-items:center}
-.sumrow b{font-weight:800}
-.hr{height:1px;background:#eee7da;margin:10px 0}
-.tabs{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.tab{padding:6px 10px;border:1px solid #e3e0d6;border-radius:10px;background:#fff;cursor:pointer}
-.tab.active{outline:2px solid #7DB9FF}
-.inp.narrow{max-width:200px}
-
-/* מובייל */
-@media (max-width: 980px){
-  .grid2{grid-template-columns:1fr}
-  header h1{font-size:18px}
-}
-@media (max-width: 560px){
-  .row{flex-direction:column;align-items:stretch}
-  .col{flex:1 1 auto}
-  .inp,.btn{width:100%}
-  .dialog{width:calc(100vw - 14px);max-height:96vh}
-  .sumrow{flex-wrap:wrap}
-  .sumrow .inp{flex:1}
-}
-/* ... הקובץ שלך כרגיל ... */
-
-/* כדי שהכותרת של טבלת הסיכום לא תסתיר שמות עובדים */
-#summaryTable thead th { position: static; top: auto; }
-
-/* הדגשת שורת הסיכום */
-#summaryTable tfoot td, #summaryTable tfoot th { font-weight: 800; }
-
-/* גלילה אופקית לטבלאות בתוך עטיפה */
-.tablewrap {
-  overflow-x: auto;   /* חשוב */
-  overflow-y: hidden; /* אופציונלי, כדי למנוע פס גלילה אנכי מיותר */
-}
-
-/* ודא שלטבלה יש מינימום רוחב כדי שתופיע גלילה אם צריך */
-#summaryTable {
-  min-width: 1100px; /* תוכל להגדיל/להקטין לפי כמות העמודות */
-}
-
-/* כותרות טבלה דביקות */
+table{ width:100%; border-collapse:collapse; background:#fff }
+th,td{ border-bottom:1px solid var(--line); padding:10px; text-align:right; font-size:14px }
 thead th{
   position: sticky;
+  top: 64px;
   background:#f7faff;
   font-weight:800;
   z-index:2;
 }
+#summaryTable{ min-width:1100px }
+#summaryTable thead th { top:64px }
+#summaryTable tfoot td, #summaryTable tfoot th { font-weight:800 }
 
-/* בעמוד הראשי: ראש הטבלה צריך לפצות על הגובה של ה-header */
-.wrap .hscroll thead th{ top:64px; }
+.tablewrap{ overflow-x:auto }
+.hscroll{ overflow-x:auto }
+.scroll-y{ overflow-y:auto }
 
-/* בתוך המודל: הראש צמוד לראש אזור הגלילה של המודל */
-.modal .hscroll thead th{ top:0; }
+.toolbar{ display:flex; gap:8px; align-items:center }
 
-/* כשמודל פתוח – אל תגלול את הגוף, כדי שטבלאות רקע לא "יצופו" */
-body.modal-open{ overflow:hidden; }
-
-/* ===== Modal layer fix ===== */
+/* מודאל */
 .modal{
   position: fixed;
   inset: 0;
   display: none;
-  align-items: flex-start;          /* להתחיל מעט מלמעלה בנייד */
+  align-items: flex-start;
   justify-content: center;
-  background: rgba(0,0,0,.35);      /* שכבת חצי-שקופה מעל העמוד */
-  z-index: 10000;                   /* מעל כל דבר בעמוד */
+  background: rgba(0,0,0,.35);
+  z-index: 10000;
 }
-.modal.show{ display: flex; }
+.modal.show{ display:flex }
+.dialog{
+  position:relative;
+  width:min(980px,96vw);
+  max-height:92vh;
+  background:#fff;
+  border:1px solid #e5e1d7;
+  border-radius:16px;
+  box-shadow:0 18px 70px rgba(0,0,0,.25);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.dialog header{
+  position:sticky; top:0; z-index:10;
+  background:#fff; border-bottom:1px solid #ece8de;
+  border-radius:16px 16px 0 0;
+  padding:10px 14px;
+  display:flex; justify-content:space-between; align-items:center
+}
+.dialog h2{ margin:0; font-size:18px; color:#0b1b2b }
+.dialog .content{ padding:12px }
 
-/* גוף המודל – ניתן לגלילה פנימית בלי שגלילת הרקע תזוז */
-.modal .modal-body{
-  max-height: calc(100vh - 140px);
-  overflow: auto;
-  padding-bottom: 16px;
+/* כותרות דביקות בתוך המודאל */
+.modal .hscroll thead th{ top:0; z-index:3 }
+
+/* גוף המודאל – גלילה אנכית */
+.modal .content{
+  flex:1;
+  overflow:auto;
 }
 
-/* נעילת גלילת הרקע כאשר המודל פתוח */
-body.modal-open{ overflow: hidden; }
+/* טאבים */
+.tabs{ display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap }
+.tab{ padding:6px 10px; border:1px solid #e3e0d6; border-radius:10px; background:#fff; cursor:pointer }
+.tab.active{ outline:2px solid #7DB9FF }
 
-/* ===== Sticky רק היכן שצריך ===== */
-thead th{
-  position: sticky;
-  top: 0;
-  background: #fff;
-  z-index: 2;
-}
+/* סיכומי צד */
+.grid2{ display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:12px }
+.sumbox{ background:#fff; border:1px solid #ece8de; border-radius:12px; padding:10px }
+.sumrow{ display:flex; justify-content:space-between; margin:6px 0; gap:10px; align-items:center }
+.sumrow b{ font-weight:800 }
+.hr{ height:1px; background:#eee7da; margin:10px 0 }
+.inp.narrow{ max-width:200px }
 
-/* כותרות סטיקי באזורי גלילה שונים */
-.wrap .hscroll thead th{ top: 64px; }          /* בעמוד הראשי, מתחת לכותרת העליונה */
-.modal .hscroll thead th{ top: 0; z-index: 3;} /* בתוך המודל בלבד */
-
-/* כאשר מודל פתוח – מבטלים "סטיקי" של דברים מהרקע שלא אמורים לצוף עליו */
-body.modal-open .wrap tfoot,
-body.modal-open .wrap .sticky-bottom,
-body.modal-open .wrap .sticky-row{
-  position: static !important;
-  box-shadow: none !important;
-  z-index: 0 !important;
-}
-
-/* מרווחים דקים יותר בטבלאות במודל – כדי שלא יהיו "אוויר" וריצודים */
+/* קומפקטיות בטבלאות בתוך מודאל */
 .modal table td, .modal table th{
-  padding: 6px 10px;
-  line-height: 1.25;
+  padding:6px 8px;
+  line-height:1.25;
+  white-space:nowrap;
 }
 
-/* ===== FIX STACK ORDER & INTERACTIONS ===== */
+/* טבלת משמרות – הקטנת מינימום רוחב עמודות */
+#empPunches { table-layout:fixed; min-width:700px; font-size:13px }
+#empPunches th:nth-child(1), #empPunches td:nth-child(1){ min-width:90px } /* תאריך */
+#empPunches th:nth-child(2), #empPunches td:nth-child(2){ min-width:70px } /* יום */
+#empPunches th:nth-child(3), #empPunches td:nth-child(3),
+#empPunches th:nth-child(4), #empPunches td:nth-child(4){ min-width:60px } /* כניסה/יציאה */
+#empPunches th:nth-child(5), #empPunches td:nth-child(5){ min-width:60px } /* סה"כ */
 
-/* שים את המודל הכי למעלה ותן שכבות פנימיות מסודרות */
-.modal{
-  position: fixed;
-  inset: 0;
-  display: none;
-  align-items: flex-start;           /* נוח יותר בנייד */
-  justify-content: center;
-  background: rgba(0,0,0,.35);
-  z-index: 20000;                    /* גבוה יותר מכל דבר בעמוד */
+/* מובייל */
+@media (max-width: 980px){
+  .grid2{ grid-template-columns:1fr }
+  header h1{ font-size:18px }
 }
-.modal.show{ display:flex; }
-
-/* חשוב: הבקדרופ מתחת לדיאלוג – לא יכסה כפתורים */
-.modal .backdrop{
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.35);
-  z-index: 0;
-  pointer-events: auto;
+@media (max-width: 560px){
+  .row{ flex-direction:column; align-items:stretch }
+  .col{ flex:1 1 auto }
+  .inp,.btn{ width:100% }
+  .dialog{ width:calc(100vw - 14px); max-height:96vh }
+  .sumrow{ flex-wrap:wrap }
+  .sumrow .inp{ flex:1 }
 }
-.modal .dialog{
-  position: relative;
-  width: min(980px, 96vw);
-  max-height: 92vh;
-  overflow: auto;
-  background: #fff;
-  border: 1px solid #e5e1d7;
-  border-radius: 16px;
-  box-shadow: 0 18px 70px rgba(0,0,0,.25);
-  z-index: 1;                        /* מעל הבקדרופ */
-  pointer-events: auto;              /* בטוח שאפשר ללחוץ */
-}
-
-/* נעילת גלילת רקע כאשר המודל פתוח */
-body.modal-open{ overflow: hidden; }
-
-/* ===== DISABLE STICKY ON BACKGROUND WHEN MODAL OPEN ===== */
-/* כך אף כותרת/שורת סיכום מהרקע לא "תצוף" מעל המודל */
-body.modal-open .wrap thead th,
-body.modal-open .wrap tfoot,
-body.modal-open .wrap .sticky-bottom,
-body.modal-open .wrap .sticky-row {
-  position: static !important;
-  box-shadow: none !important;
-  z-index: 0 !important;
-}
-
-/* בתוך המודל – סטיקי עובד כרגיל לכותרות הטבלה */
-.modal .hscroll thead th{
-  position: sticky;
-  top: 0;
-  background: #fff;
-  z-index: 3;
-}
-
-/* ריווח דק יותר בתוך טבלאות של המודל, למניעת "אוויר" ושבירה */
-.modal table td,
-.modal table th{
-  padding: 6px 10px;
-  line-height: 1.25;
-}
-/* ===== Modal stacking & clicks ===== */
-.modal { z-index: 10000; }
-.modal .backdrop { position:absolute; inset:0; background:rgba(0,0,0,.35); z-index: 0; }
-.modal .dialog   { position:relative; z-index: 1; }  /* התוכן מעל ה-backdrop */
-
-/* נעילת גלילת הרקע כשמודאל פתוח */
-body.modal-open { overflow: hidden; }
-
-/* ===== Sticky רק במה שצריך בתוך המודאל ===== */
-.modal thead th { position: sticky; top: 0; background: #fff; z-index: 3; }
-
-/* חשוב: בתוך המודאל לא רוצים ש-footers/שורות סיכום יהיו sticky בכלל */
-.modal tfoot, 
-.modal .sticky-row, 
-.modal .sticky-bottom { 
-  position: static !important; 
-  box-shadow: none !important; 
-  z-index: 0 !important; 
-}
-
-/* ריווח קומפקטי יותר בטבלאות מודאל כדי שלא "יצופו" אזורים */
-.modal table td, 
-.modal table th { padding: 6px 10px; line-height: 1.25; }
